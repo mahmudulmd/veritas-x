@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Veritas for X</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      width: 320px;
+      background: #0f1419;
+      color: #f7f9f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .logo {
+      font-size: 24px;
+    }
+    .title-group h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1d9bf0;
+    }
+    .title-group p {
+      font-size: 11px;
+      color: #71767b;
+    }
+    .founder-box {
+      background: linear-gradient(135deg, rgba(29, 155, 240, 0.15), rgba(0, 186, 124, 0.15));
+      border: 1px solid rgba(29, 155, 240, 0.35);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .founder-title {
+      font-size: 10px;
+      color: #1d9bf0;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .founder-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+    .founder-detail {
+      color: #8b98a5;
+    }
+    .founder-detail b {
+      color: #e7e9ea;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .badge {
+      background: rgba(0, 186, 124, 0.2);
+      color: #00ba7c;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .action-btn {
+      width: 100%;
+      background: #1d9bf0;
+      color: #ffffff;
+      border: none;
+      padding: 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .action-btn:hover {
+      background: #1a8cd8;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🛡️</div>
+    <div class="title-group">
+      <h1>Veritas for X</h1>
+      <p>Autonomous Community Notes Engine</p>
+    </div>
+  </div>
+
+  <div class="founder-box">
+    <div class="founder-title">Founder & Official Creator</div>
+    <div class="founder-name">Md. Mahmudul Hoque ⚡</div>
+    <div class="founder-detail">Contact: <b>mahmudulhoque934@gmail.com</b></div>
+    <div class="founder-detail">Location: <b>Panchagarh, Bangladesh 🌐</b></div>
+  </div>
+
+  <div class="card">
+    <div class="status-row">
+      <span style="color: #71767b;">Engine Status</span>
+      <span class="badge">ACTIVE (EDGE)</span>
+    </div>
+    <div class="status-row">
+      <span style="color: #71767b;">Deepfake Latency</span>
+      <span style="font-weight: 600;">~340ms</span>
+    </div>
+    <div class="status-row" style="margin-bottom: 0;">
+      <span style="color: #71767b;">Target Feed</span>
+      <span style="font-weight: 600;">x.com</span>
+    </div>
+  </div>
+
+  <button class="action-btn" id="open-x">Open X (Twitter)</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

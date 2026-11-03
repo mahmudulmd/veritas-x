@@ -1,0 +1,189 @@
+/* Veritas for X - Stylesheet */
+/* Founder & Creator: Md. Mahmudul Hoque */
+
+.veritas-verify-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(29, 155, 240, 0.12);
+  color: #1d9bf0;
+  border: 1px solid rgba(29, 155, 240, 0.35);
+  border-radius: 9999px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-top: 8px;
+  margin-bottom: 6px;
+  backdrop-filter: blur(8px);
+}
+
+.veritas-verify-btn:hover {
+  background: rgba(29, 155, 240, 0.25);
+  border-color: #1d9bf0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(29, 155, 240, 0.3);
+}
+
+.veritas-verify-btn.loading {
+  opacity: 0.8;
+  cursor: wait;
+}
+
+.veritas-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(29, 155, 240, 0.3);
+  border-top-color: #1d9bf0;
+  border-radius: 50%;
+  animation: veritas-spin 0.8s linear infinite;
+}
+
+@keyframes veritas-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* The Veritas Instant Community Note Card */
+.veritas-result-card {
+  margin-top: 10px;
+  margin-bottom: 12px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(15, 20, 25, 0.95);
+  border: 1px solid rgba(29, 155, 240, 0.25);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  color: #f7f9f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  animation: veritas-slide-down 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+@keyframes veritas-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.veritas-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.veritas-badge-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+}
+
+.veritas-status-pill {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.status-fake {
+  background: rgba(244, 33, 46, 0.18);
+  color: #f4212e;
+  border: 1px solid rgba(244, 33, 46, 0.4);
+}
+
+.status-verified {
+  background: rgba(0, 186, 124, 0.18);
+  color: #00ba7c;
+  border: 1px solid rgba(0, 186, 124, 0.4);
+}
+
+.veritas-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.veritas-stat-box {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.veritas-stat-label {
+  font-size: 10px;
+  color: #71767b;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.veritas-stat-value {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.veritas-summary-box {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #e7e9ea;
+  margin-bottom: 10px;
+  border-left: 3px solid #1d9bf0;
+}
+
+/* Prominent In-Page Founder Ribbon */
+.veritas-founder-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, rgba(29, 155, 240, 0.18), rgba(0, 186, 124, 0.18));
+  border: 1px solid rgba(29, 155, 240, 0.35);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.veritas-founder-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.veritas-founder-badge {
+  background: #1d9bf0;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.veritas-founder-name {
+  font-weight: 700;
+  color: #fff;
+  font-size: 12px;
+}
+
+.veritas-founder-loc {
+  color: #8b98a5;
+  font-size: 11px;
+}

@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Veritas for X",
+  "version": "1.0.0",
+  "description": "Instant Autonomous Community Notes & Deepfake Detection for X. Founder: Md. Mahmudul Hoque (mahmudulhoque934@gmail.com).",
+  "author": "Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Veritas for X - Md. Mahmudul Hoque"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
