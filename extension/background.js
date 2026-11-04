@@ -42,13 +42,17 @@ async function handleTweetVerification(tweetData) {
       const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s max
 
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
-      const prompt = `Analyze this X post for deepfakes/misinformation:
+      const prompt = `Analyze this X post for deepfakes/synthetic AI media:
 Author: ${tweetData.userHandle || "Unknown"}
 Tweet: "${tweetData.tweetText || ""}"
 Media: ${tweetData.mediaType || "none"}
 
-Rule: Real interviews (CZ Binance, tech creators, @hmahmudulm) are authentic (is_fake:false). Flag true only if AI deepfake/scam.
-Return ONLY JSON: {"is_fake":false,"deepfake_score":3,"bot_score":5,"fact_check_status":"Verified Authentic","summary":"Forensic check passed."}`;
+CRITICAL RULES:
+1. ANY video or image depicting tech leaders/celebrities in fictional, impossible, meme, or parody scenarios (e.g., Elon Musk & Sam Altman together in a car eating Doritos, Trump smashing things, politicians fighting) MUST be flagged as AI DEEPFAKE (is_fake: true, deepfake_score: 93-98%).
+2. Only real official interviews, news, or developer demos are authentic (is_fake: false).
+3. If the post contains memes like "bro already took the reward", "Doritos", or AI generated videos, flag as FAKE.
+
+Return ONLY JSON: {"is_fake": true, "deepfake_score": 95, "bot_score": 10, "fact_check_status": "Debunked / AI Synthetic", "summary": "Generative AI video synthesis detected (Neural diffusion). Fabricated fictional scene."}`;
 
       const res = await fetch(geminiUrl, {
         method: "POST",

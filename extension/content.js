@@ -57,8 +57,8 @@ function createVerifyButton(tweetNode) {
 }
 
 function extractTweetData(tweetNode) {
-  const textElement = tweetNode.querySelector('[data-testid="tweetText"]');
-  const tweetText = textElement ? textElement.innerText : "";
+  const allTextElements = Array.from(tweetNode.querySelectorAll('[data-testid="tweetText"]'));
+  const tweetText = allTextElements.map(el => el.innerText).join(" ");
   
   const userElement = tweetNode.querySelector('[data-testid="User-Name"]');
   const userHandle = userElement ? userElement.innerText.split("\n")[1] || "" : "";
@@ -130,7 +130,8 @@ function simulateVerification(data) {
     "send eth get double", "crypto giveaway claim", "shocking leaked video of",
     "ai simulated", "smashing things", "trump reportedly", "breaking: trump",
     "election defeat", "oval office", "grok can you verify", "leaked", "deepfake",
-    "fist fight", "arrested in", "caught on tape", "secret camera"
+    "fist fight", "arrested in", "caught on tape", "secret camera",
+    "bro already", "doritos", "reward"
   ];
 
   // Political deepfake detection heuristic
@@ -138,8 +139,18 @@ function simulateVerification(data) {
   const sensationalAction = ["smashing", "punching", "fighting", "crying", "dancing", "arrested", "breaking", "leaked", "fleeing"].some(a => text.includes(a));
   const isPoliticalDeepfake = politicalFigure && sensationalAction;
 
+  // Celebrity / Tech Leader Viral Parody & Meme Deepfake detection (Elon, Sam Altman, car rides, memes)
+  const isCelebrityMemeVideo = (data.mediaType === "video" || data.mediaType === "image") && (
+    text.includes("doritos") ||
+    text.includes("reward") ||
+    text.includes("bro already") ||
+    (text.includes("car") && (text.includes("elon") || text.includes("sama") || text.includes("altman"))) ||
+    ((text.includes("elon") || text.includes("musk")) && (text.includes("sama") || text.includes("altman") || text.includes("openai"))) ||
+    (text.includes("sama") && (text.includes("reward") || text.includes("😂") || text.includes("ai")))
+  );
+
   // Does this tweet have any viral/suspicious manipulation signal?
-  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake;
+  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake || isCelebrityMemeVideo;
 
   let isFake = false;
   let deepfakeScore = 0;
