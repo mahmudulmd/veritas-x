@@ -127,11 +127,19 @@ function simulateVerification(data) {
   const suspiciousSignals = [
     "sora ai", "made with sora", "kling ai", "runway gen", "ai voice clone leak",
     "leaked audio of", "secret footage of", "caught on hidden camera", "ww3 declared",
-    "send eth get double", "crypto giveaway claim", "shocking leaked video of"
+    "send eth get double", "crypto giveaway claim", "shocking leaked video of",
+    "ai simulated", "smashing things", "trump reportedly", "breaking: trump",
+    "election defeat", "oval office", "grok can you verify", "leaked", "deepfake",
+    "fist fight", "arrested in", "caught on tape", "secret camera"
   ];
 
+  // Political deepfake detection heuristic
+  const politicalFigure = ["trump", "biden", "putin", "obama", "harris", "modi"].some(p => text.includes(p));
+  const sensationalAction = ["smashing", "punching", "fighting", "crying", "dancing", "arrested", "breaking", "leaked", "fleeing"].some(a => text.includes(a));
+  const isPoliticalDeepfake = politicalFigure && sensationalAction;
+
   // Does this tweet have any viral/suspicious manipulation signal?
-  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig));
+  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake;
 
   let isFake = false;
   let deepfakeScore = 0;
