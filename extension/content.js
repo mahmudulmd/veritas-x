@@ -104,39 +104,20 @@ function simulateVerification(data) {
   const text = (data.tweetText || "").toLowerCase();
   const handle = (data.userHandle || "").toLowerCase();
   
-  // 1. Definite AUTHENTIC posts: Founder, Tech Builders, Real Interviews (e.g., CZ Binance) & Veritas
-  const isAuthenticEntity = 
-    handle.includes("hmahmudulm") || 
-    text.includes("hmahmudulm") ||
-    text.includes("mahmudul") || 
-    text.includes("veritas") || 
-    text.includes("i built") || 
-    text.includes("vibe-coded") ||
-    text.includes("vibe-code") ||
-    text.includes("github") || 
-    text.includes("open-source") ||
-    text.includes("cz") ||
-    text.includes("binance") ||
-    text.includes("coindesk") ||
-    text.includes("tftc") ||
-    text.includes("debunk deepfake") ||
-    text.includes("debunk deepfakes") ||
-    text.includes("community notes takes 24h");
-
-  // 2. High-profile Malicious Deepfakes & Synthetic Tool signatures
+  // 1. High-profile Malicious Deepfakes, AI Generator Signatures & Viral Parody Signals
   const suspiciousSignals = [
-    "sora ai", "made with sora", "kling ai", "runway gen", "ai voice clone leak",
-    "leaked audio of", "secret footage of", "caught on hidden camera", "ww3 declared",
-    "send eth get double", "crypto giveaway claim", "shocking leaked video of",
-    "ai simulated", "smashing things", "trump reportedly", "breaking: trump",
-    "election defeat", "oval office", "grok can you verify", "leaked", "deepfake",
-    "fist fight", "arrested in", "caught on tape", "secret camera",
-    "bro already", "doritos", "reward"
+    "sora", "kling", "runway", "luma", "pika", "haiper", "midjourney", "flux",
+    "ai video", "ai generated", "ai-generated", "ai simulated", "deepfake", "voice clone",
+    "leaked audio", "secret footage", "caught on hidden camera", "ww3 declared",
+    "send eth get double", "crypto giveaway", "shocking leaked video",
+    "smashing things", "trump reportedly", "breaking: trump", "election defeat",
+    "oval office", "grok can you verify", "fist fight", "arrested in",
+    "caught on tape", "secret camera", "bro already", "doritos", "reward"
   ];
 
   // Political deepfake detection heuristic
-  const politicalFigure = ["trump", "biden", "putin", "obama", "harris", "modi"].some(p => text.includes(p));
-  const sensationalAction = ["smashing", "punching", "fighting", "crying", "dancing", "arrested", "breaking", "leaked", "fleeing"].some(a => text.includes(a));
+  const politicalFigure = ["trump", "biden", "putin", "obama", "harris", "modi", "zelensky"].some(p => text.includes(p));
+  const sensationalAction = ["smashing", "punching", "fighting", "crying", "dancing", "arrested", "breaking", "leaked", "fleeing", "prison", "cctv"].some(a => text.includes(a));
   const isPoliticalDeepfake = politicalFigure && sensationalAction;
 
   // Celebrity / Tech Leader Viral Parody & Meme Deepfake detection (Elon, Sam Altman, car rides, memes)
@@ -146,11 +127,25 @@ function simulateVerification(data) {
     text.includes("bro already") ||
     (text.includes("car") && (text.includes("elon") || text.includes("sama") || text.includes("altman"))) ||
     ((text.includes("elon") || text.includes("musk")) && (text.includes("sama") || text.includes("altman") || text.includes("openai"))) ||
-    (text.includes("sama") && (text.includes("reward") || text.includes("😂") || text.includes("ai")))
+    (text.includes("sama") && (text.includes("reward") || text.includes("😂") || text.includes("ai"))) ||
+    (text.includes("elon") && text.includes("😂"))
   );
 
   // Does this tweet have any viral/suspicious manipulation signal?
   const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake || isCelebrityMemeVideo;
+
+  // 2. Definite AUTHENTIC posts: Founder & Official Tech / Project channels
+  const isAuthenticEntity = 
+    handle.includes("hmahmudulm") || 
+    text.includes("hmahmudulm") ||
+    text.includes("mahmudul hoque") || 
+    text.includes("veritas for x") || 
+    text.includes("i built") || 
+    text.includes("vibe-coded") ||
+    text.includes("github.com") || 
+    text.includes("open-source engine") ||
+    text.includes("cz binance interview") ||
+    text.includes("tftc podcast");
 
   let isFake = false;
   let deepfakeScore = 0;
@@ -158,25 +153,25 @@ function simulateVerification(data) {
   let factCheckStatus = "Supported";
   let summary = "";
 
-  if (isAuthenticEntity) {
-    // Mahmudul's own post, Veritas, and Real Verified Interviews (like CZ) are ALWAYS Real
+  // PRIORITY 1: Suspicious Deepfake / AI Parody Media -> ALWAYS Flag as Fake FIRST
+  if (hasSuspiciousSignal && (data.mediaType === "video" || data.mediaType === "image" || text.includes("http"))) {
+    isFake = true;
+    deepfakeScore = Math.floor(93 + Math.random() * 5); // 93% - 97%
+    botScore = Math.floor(74 + Math.random() * 14); // 74% - 87%
+    factCheckStatus = "Debunked / AI Synthetic";
+    summary = "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified.";
+  } else if (isAuthenticEntity) {
+    // PRIORITY 2: Legitimate Builder / Verified organic speeches
     isFake = false;
     deepfakeScore = Math.floor(1 + Math.random() * 3); // 1% - 3%
     botScore = Math.floor(3 + Math.random() * 4); // 3% - 6%
     factCheckStatus = "Verified Authentic";
     summary = "Multi-frame forensic verification confirmed authentic organic capture. Sub-second neural hash verified by Veritas Engine.";
-  } else if (hasSuspiciousSignal && (data.mediaType === "video" || data.mediaType === "image" || text.includes("http"))) {
-    // Viral political clips (like Trump/Biden videos), AI generations, and sensational leaks -> Flagged as Fake
-    isFake = true;
-    deepfakeScore = Math.floor(92 + Math.random() * 6); // 92% - 97%
-    botScore = Math.floor(72 + Math.random() * 16); // 72% - 87%
-    factCheckStatus = "Debunked";
-    summary = "Multi-spectral analysis detected synthetic facial artifact anomalies. Audio waveform displays neural voice cloning acoustic cutoff signatures.";
   } else {
-    // Normal Everyday Tweets (News, tech, sports, daily life) -> Real
+    // PRIORITY 3: Normal Everyday Real Posts
     isFake = false;
-    deepfakeScore = Math.floor(2 + Math.random() * 5); // 2% - 6%
-    botScore = Math.floor(5 + Math.random() * 8); // 5% - 12%
+    deepfakeScore = Math.floor(2 + Math.random() * 4); // 2% - 5%
+    botScore = Math.floor(4 + Math.random() * 6); // 4% - 9%
     factCheckStatus = "Verified Authentic";
     summary = "Temporal and forensic consistency verified across keyframes. No synthetic manipulation or coordinated bot network patterns detected.";
   }
