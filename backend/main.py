@@ -51,35 +51,15 @@ def call_gemini_verifier(tweet_text: str, user_handle: str, media_type: str):
         model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
         client = genai.Client(api_key=api_key)
 
-        prompt = f"""
-You are Veritas: an autonomous multimodal fact-checking and deepfake detection engine natively integrated into X (formerly Twitter).
-Evaluate this post:
-
-Author: {user_handle}
-Tweet: "{tweet_text}"
-Media Type: {media_type}
-
-RULES:
-1. Authentic real posts:
-   - Creator Md. Mahmudul Hoque (@hmahmudulm) or Veritas for X projects are ALWAYS 100% Authentic (is_fake: false, deepfake_score: 1-4%).
-   - Legitimate news, verified interviews (like CZ Binance talking about cybersecurity/banks, tech demos, real public statements) are AUTHENTIC (is_fake: false, deepfake_score: 2-5%).
-2. Manipulated / Deepfake posts:
-   - Flag as FAKE (is_fake: true, deepfake_score: 91-97%) ONLY if it is an actual AI deepfake video, synthetic voice clone scam, crypto giveaway scam, or fabricated viral hoax.
-
-Return ONLY this valid JSON:
-{{
-  "is_fake": false,
-  "deepfake_score": 3,
-  "bot_score": 5,
-  "fact_check_status": "Verified Authentic",
-  "summary": "Forensic multi-frame analysis matches authentic broadcast capture. Zero synthetic voice modulation detected."
-}}
-"""
+        prompt = f"""Evaluate X post: Author: {user_handle}, Tweet: "{tweet_text}", Media: {media_type}.
+Authentic news/interviews/builders are real. Flag fake only if AI deepfake/scam.
+Return ONLY JSON: {{"is_fake": false, "deepfake_score": 3, "bot_score": 5, "fact_check_status": "Verified Authentic", "summary": "Forensic multi-frame check verified."}}"""
         response = client.models.generate_content(
             model=model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                max_output_tokens=120
             )
         )
         return json.loads(response.text)
