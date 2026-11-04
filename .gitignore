@@ -1,0 +1,20 @@
+# Environment variables & secrets
+.env
+backend/.env
+extension/config.js
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Editor / OS settings
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

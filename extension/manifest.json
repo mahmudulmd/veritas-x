@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Veritas for X",
-  "version": "1.0.0",
-  "description": "Instant Autonomous Community Notes & Deepfake Detection for X. Founder: Md. Mahmudul Hoque (mahmudulhoque934@gmail.com).",
+  "version": "1.1.0",
+  "description": "Autonomous Real-Time Multimodal AI Verification Engine for X. Powered by Gemini. Founder: Md. Mahmudul Hoque.",
   "author": "Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>",
   "permissions": [
     "activeTab",
@@ -11,8 +11,12 @@
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
+    "https://generativelanguage.googleapis.com/*",
     "http://127.0.0.1:8000/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Veritas for X - Md. Mahmudul Hoque"
