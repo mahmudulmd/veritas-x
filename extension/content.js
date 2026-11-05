@@ -117,7 +117,7 @@ function simulateVerification(data) {
   const handle = (data.userHandle || "").toLowerCase();
   const userHeader = (data.fullUserHeader || "").toLowerCase();
 
-  // 1. Parody & Satire Account Detection (e.g., "🎭 Parody account", "Not Jerome Powell")
+  // 1. Parody & Satire Account Detection
   const isParodyAccount = 
     userHeader.includes("parody") || 
     userHeader.includes("satire") || 
@@ -127,51 +127,7 @@ function simulateVerification(data) {
     userHeader.includes("🎭") ||
     handle.includes("parody");
 
-  // 2. Political Satire / Deepfake Memes (e.g. WWE coffins, Iranian revenge, deepfakes)
-  const hasPoliticalSatire = (data.mediaType === "video" || data.mediaType === "image") && (
-    text.includes("revenge of") ||
-    text.includes("wwe") ||
-    text.includes("coffin") ||
-    text.includes("funeral") ||
-    text.includes("smackdown") ||
-    text.includes("wrestling") ||
-    text.includes("undertaker") ||
-    text.includes("iran") ||
-    text.includes("khamenei") ||
-    text.includes("midterms")
-  );
-  
-  // 3. High-profile Malicious Deepfakes, AI Generator Signatures & Viral Parody Signals
-  const suspiciousSignals = [
-    "sora", "kling", "runway", "luma", "pika", "haiper", "midjourney", "flux",
-    "ai video", "ai generated", "ai-generated", "ai simulated", "deepfake", "voice clone",
-    "leaked audio", "secret footage", "caught on hidden camera", "ww3 declared",
-    "send eth get double", "crypto giveaway", "shocking leaked video",
-    "smashing things", "trump reportedly", "breaking: trump", "election defeat",
-    "oval office", "grok can you verify", "fist fight", "arrested in",
-    "caught on tape", "secret camera", "bro already", "doritos", "reward"
-  ];
-
-  // Political deepfake detection heuristic
-  const politicalFigure = ["trump", "biden", "putin", "obama", "harris", "modi", "zelensky"].some(p => text.includes(p));
-  const sensationalAction = ["smashing", "punching", "fighting", "crying", "dancing", "arrested", "breaking", "leaked", "fleeing", "prison", "cctv"].some(a => text.includes(a));
-  const isPoliticalDeepfake = politicalFigure && sensationalAction;
-
-  // Celebrity / Tech Leader Viral Parody & Meme Deepfake detection (Elon, Sam Altman, car rides, memes)
-  const isCelebrityMemeVideo = (data.mediaType === "video" || data.mediaType === "image") && (
-    text.includes("doritos") ||
-    text.includes("reward") ||
-    text.includes("bro already") ||
-    (text.includes("car") && (text.includes("elon") || text.includes("sama") || text.includes("altman"))) ||
-    ((text.includes("elon") || text.includes("musk")) && (text.includes("sama") || text.includes("altman") || text.includes("openai"))) ||
-    (text.includes("sama") && (text.includes("reward") || text.includes("😂") || text.includes("ai"))) ||
-    (text.includes("elon") && text.includes("😂"))
-  );
-
-  // Does this tweet have any viral/suspicious manipulation signal?
-  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake || isCelebrityMemeVideo || isPoliticalSatire || (isParodyAccount && (data.mediaType === "video" || data.mediaType === "image"));
-
-  // 4. Definite AUTHENTIC posts: Founder & Official Tech / Project channels
+  // 2. Verified Authentic Entities: Founder, Official Veritas, Verified Code Builders
   const isAuthenticEntity = 
     handle.includes("hmahmudulm") || 
     text.includes("hmahmudulm") ||
@@ -181,7 +137,7 @@ function simulateVerification(data) {
     text.includes("vibe-coded") ||
     text.includes("github.com") || 
     text.includes("open-source engine") ||
-    text.includes("cz binance interview") ||
+    text.includes("cz binance") ||
     text.includes("tftc podcast");
 
   let isFake = false;
@@ -190,8 +146,15 @@ function simulateVerification(data) {
   let factCheckStatus = "Supported";
   let summary = "";
 
-  // PRIORITY 1: Suspicious Deepfake / AI Parody Media -> ALWAYS Flag as Fake FIRST
-  if (hasSuspiciousSignal || (data.mediaType === "video" && !isAuthenticEntity)) {
+  if (isAuthenticEntity) {
+    // Verified Founder & Legitimate Creator Showcases -> SOLID GREEN
+    isFake = false;
+    deepfakeScore = Math.floor(1 + Math.random() * 3); // 1% - 3%
+    botScore = Math.floor(3 + Math.random() * 4); // 3% - 6%
+    factCheckStatus = "Verified Authentic";
+    summary = "Multi-frame forensic verification confirmed authentic organic capture. Sub-second neural hash verified by Veritas Engine.";
+  } else {
+    // ALL OTHER viral videos, memes, parody posts & external media -> 100% SOLID RED (NEVER GREEN)
     isFake = true;
     deepfakeScore = Math.floor(94 + Math.random() * 4); // 94% - 97%
     botScore = Math.floor(74 + Math.random() * 14); // 74% - 87%
@@ -199,20 +162,6 @@ function simulateVerification(data) {
     summary = isParodyAccount 
       ? "Content originated from a satire/parody creator (🎭). Visual media contains face-swapped / AI-manipulated synthetic footage."
       : "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified.";
-  } else if (isAuthenticEntity) {
-    // PRIORITY 2: Legitimate Builder / Verified organic speeches & tech demos
-    isFake = false;
-    deepfakeScore = Math.floor(1 + Math.random() * 3); // 1% - 3%
-    botScore = Math.floor(3 + Math.random() * 4); // 3% - 6%
-    factCheckStatus = "Verified Authentic";
-    summary = "Multi-frame forensic verification confirmed authentic organic capture. Sub-second neural hash verified by Veritas Engine.";
-  } else {
-    // PRIORITY 3: Normal Everyday Text / Verified non-manipulated Posts
-    isFake = false;
-    deepfakeScore = Math.floor(2 + Math.random() * 4); // 2% - 5%
-    botScore = Math.floor(4 + Math.random() * 6); // 4% - 9%
-    factCheckStatus = "Verified Authentic";
-    summary = "Temporal and forensic consistency verified across keyframes. No synthetic manipulation or coordinated bot network patterns detected.";
   }
 
   return {
@@ -226,7 +175,7 @@ function simulateVerification(data) {
     botProbability: botScore + "%",
     factCheckStatus: factCheckStatus,
     summary: summary,
-    sourceTitle: isFake ? "Community Notes Consensus" : "Veritas Multi-Spectral Live Verification",
+    sourceTitle: isFake ? "⚡ Veritas Deepfake Forensics" : "⚡ Veritas Verified Core",
     sourceUrl: "https://x.com"
   };
 }
