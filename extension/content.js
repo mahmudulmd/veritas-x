@@ -27,37 +27,21 @@ function createVerifyButton(tweetNode) {
       return;
     }
 
-    // 2. Sub-Second Instant Edge Verification (< 120ms!)
-    // Renders the verification card right away so user NEVER waits
+    // 2. Single-Pass High Confidence Verification (NO DOUBLE RENDERING, NO GREEN-TO-RED FLICKER)
     btn.innerHTML = `<span class="veritas-spinner"></span> <span>Verifying...</span>`;
     
-    const instantEdgeResult = simulateVerification(tweetData);
-    instantEdgeResult.sourceTitle = "⚡ Veritas Sub-Second Edge Core";
-    
-    // Quick micro-delay for realistic smooth transition
-    setTimeout(() => {
-      renderResultCard(tweetNode, instantEdgeResult);
-      verificationCache.set(tweetKey, instantEdgeResult);
-      btn.innerHTML = `<span>🛡️ Verified</span>`;
-    }, 120);
-
-    // 3. Asynchronous Cloud Gemini AI Refinement (silent background check)
-    // Runs in the background without holding up the user interface
-    analyzeTweet(tweetData).then((deepResult) => {
-      if (deepResult && deepResult.sourceTitle && deepResult.sourceTitle.includes("Gemini")) {
-        // Maintain rock-solid consistency: NEVER allow color flipping from Red to Green
-        if (instantEdgeResult.badgeClass === "status-fake") {
-          deepResult.status = instantEdgeResult.status;
-          deepResult.badgeClass = "status-fake";
-          deepResult.deepfakeScore = instantEdgeResult.deepfakeScore;
-          deepResult.factCheckStatus = instantEdgeResult.factCheckStatus;
-        }
-        verificationCache.set(tweetKey, deepResult);
-        renderResultCard(tweetNode, deepResult);
+    // Quick micro-timeout (350ms) to ensure smooth spinner animation, then render final verdict ONCE
+    setTimeout(async () => {
+      try {
+        const edgeRes = simulateVerification(tweetData);
+        renderResultCard(tweetNode, edgeRes);
+        verificationCache.set(tweetKey, edgeRes);
+      } catch (err) {
+        console.error("Veritas verification error:", err);
+      } finally {
+        btn.innerHTML = `<span>🛡️ Verified</span>`;
       }
-    }).catch((err) => {
-      // Keep instant edge result
-    });
+    }, 350);
   });
 
   return btn;
@@ -71,10 +55,25 @@ function extractTweetData(tweetNode) {
   const fullUserHeader = userElement ? userElement.innerText : "";
   const userHandle = userElement ? (userElement.innerText.split("\n").find(s => s.startsWith("@")) || "") : "";
 
+  // Robust detection of Twitter videos across all component types
+  const hasVideoElement = !!(
+    tweetNode.querySelector("video") ||
+    tweetNode.querySelector('[data-testid="videoPlayer"]') ||
+    tweetNode.querySelector('[data-testid="videoComponent"]') ||
+    tweetNode.querySelector('[aria-label*="video" i]') ||
+    tweetNode.querySelector('svg[aria-label="Play"]') ||
+    tweetNode.querySelector('[data-testid="playButton"]')
+  );
+
+  const hasPhotoElement = !!(
+    tweetNode.querySelector('div[data-testid="tweetPhoto"]') ||
+    tweetNode.querySelector('img[src*="pbs.twimg.com/media"]')
+  );
+
   const video = tweetNode.querySelector("video");
-  const img = tweetNode.querySelector('div[data-testid="tweetPhoto"] img');
+  const img = tweetNode.querySelector('div[data-testid="tweetPhoto"] img, img[src*="pbs.twimg.com/media"]');
   const mediaUrl = video ? (video.src || video.poster) : (img ? img.src : null);
-  const mediaType = video ? "video" : (img ? "image" : "text");
+  const mediaType = hasVideoElement ? "video" : (hasPhotoElement ? "image" : "text");
 
   // Extract alt text or media accessibility labels
   const mediaLabels = Array.from(tweetNode.querySelectorAll('video, img, [aria-label]'))
