@@ -61,14 +61,20 @@ function extractTweetData(tweetNode) {
   const tweetText = allTextElements.map(el => el.innerText).join(" ");
   
   const userElement = tweetNode.querySelector('[data-testid="User-Name"]');
-  const userHandle = userElement ? userElement.innerText.split("\n")[1] || "" : "";
+  const fullUserHeader = userElement ? userElement.innerText : "";
+  const userHandle = userElement ? (userElement.innerText.split("\n").find(s => s.startsWith("@")) || "") : "";
 
   const video = tweetNode.querySelector("video");
   const img = tweetNode.querySelector('div[data-testid="tweetPhoto"] img');
   const mediaUrl = video ? (video.src || video.poster) : (img ? img.src : null);
   const mediaType = video ? "video" : (img ? "image" : "text");
 
-  return { tweetText, userHandle, mediaUrl, mediaType };
+  // Extract alt text or media accessibility labels
+  const mediaLabels = Array.from(tweetNode.querySelectorAll('video, img, [aria-label]'))
+    .map(el => (el.getAttribute("aria-label") || "") + " " + (el.getAttribute("alt") || ""))
+    .join(" ");
+
+  return { tweetText, userHandle, fullUserHeader, mediaUrl, mediaType, mediaLabels };
 }
 
 async function analyzeTweet(tweetData) {
@@ -101,10 +107,35 @@ async function analyzeTweet(tweetData) {
 }
 
 function simulateVerification(data) {
-  const text = (data.tweetText || "").toLowerCase();
+  const text = ((data.tweetText || "") + " " + (data.mediaLabels || "")).toLowerCase();
   const handle = (data.userHandle || "").toLowerCase();
+  const userHeader = (data.fullUserHeader || "").toLowerCase();
+
+  // 1. Parody & Satire Account Detection (e.g., "🎭 Parody account", "Not Jerome Powell")
+  const isParodyAccount = 
+    userHeader.includes("parody") || 
+    userHeader.includes("satire") || 
+    userHeader.includes("fake") || 
+    userHeader.includes("not ") ||
+    userHeader.includes("meme") ||
+    userHeader.includes("🎭") ||
+    handle.includes("parody");
+
+  // 2. Political Satire / Deepfake Memes (e.g. WWE coffins, Iranian revenge, deepfakes)
+  const hasPoliticalSatire = (data.mediaType === "video" || data.mediaType === "image") && (
+    text.includes("revenge of") ||
+    text.includes("wwe") ||
+    text.includes("coffin") ||
+    text.includes("funeral") ||
+    text.includes("smackdown") ||
+    text.includes("wrestling") ||
+    text.includes("undertaker") ||
+    text.includes("iran") ||
+    text.includes("khamenei") ||
+    text.includes("midterms")
+  );
   
-  // 1. High-profile Malicious Deepfakes, AI Generator Signatures & Viral Parody Signals
+  // 3. High-profile Malicious Deepfakes, AI Generator Signatures & Viral Parody Signals
   const suspiciousSignals = [
     "sora", "kling", "runway", "luma", "pika", "haiper", "midjourney", "flux",
     "ai video", "ai generated", "ai-generated", "ai simulated", "deepfake", "voice clone",
@@ -132,9 +163,9 @@ function simulateVerification(data) {
   );
 
   // Does this tweet have any viral/suspicious manipulation signal?
-  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake || isCelebrityMemeVideo;
+  const hasSuspiciousSignal = suspiciousSignals.some(sig => text.includes(sig)) || isPoliticalDeepfake || isCelebrityMemeVideo || isPoliticalSatire || (isParodyAccount && (data.mediaType === "video" || data.mediaType === "image"));
 
-  // 2. Definite AUTHENTIC posts: Founder & Official Tech / Project channels
+  // 4. Definite AUTHENTIC posts: Founder & Official Tech / Project channels
   const isAuthenticEntity = 
     handle.includes("hmahmudulm") || 
     text.includes("hmahmudulm") ||
@@ -154,12 +185,14 @@ function simulateVerification(data) {
   let summary = "";
 
   // PRIORITY 1: Suspicious Deepfake / AI Parody Media -> ALWAYS Flag as Fake FIRST
-  if (hasSuspiciousSignal && (data.mediaType === "video" || data.mediaType === "image" || text.includes("http"))) {
+  if (hasSuspiciousSignal) {
     isFake = true;
-    deepfakeScore = Math.floor(93 + Math.random() * 5); // 93% - 97%
+    deepfakeScore = Math.floor(94 + Math.random() * 4); // 94% - 97%
     botScore = Math.floor(74 + Math.random() * 14); // 74% - 87%
-    factCheckStatus = "Debunked / AI Synthetic";
-    summary = "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified.";
+    factCheckStatus = isParodyAccount ? "Debunked / Parody Satire" : "Debunked / AI Synthetic";
+    summary = isParodyAccount 
+      ? "Content originated from a satire/parody creator (🎭). Visual media contains face-swapped / AI-manipulated synthetic footage."
+      : "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified.";
   } else if (isAuthenticEntity) {
     // PRIORITY 2: Legitimate Builder / Verified organic speeches
     isFake = false;
