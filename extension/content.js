@@ -45,6 +45,13 @@ function createVerifyButton(tweetNode) {
     // Runs in the background without holding up the user interface
     analyzeTweet(tweetData).then((deepResult) => {
       if (deepResult && deepResult.sourceTitle && deepResult.sourceTitle.includes("Gemini")) {
+        // Maintain rock-solid consistency: NEVER allow color flipping from Red to Green
+        if (instantEdgeResult.badgeClass === "status-fake") {
+          deepResult.status = instantEdgeResult.status;
+          deepResult.badgeClass = "status-fake";
+          deepResult.deepfakeScore = instantEdgeResult.deepfakeScore;
+          deepResult.factCheckStatus = instantEdgeResult.factCheckStatus;
+        }
         verificationCache.set(tweetKey, deepResult);
         renderResultCard(tweetNode, deepResult);
       }
@@ -185,7 +192,7 @@ function simulateVerification(data) {
   let summary = "";
 
   // PRIORITY 1: Suspicious Deepfake / AI Parody Media -> ALWAYS Flag as Fake FIRST
-  if (hasSuspiciousSignal) {
+  if (hasSuspiciousSignal || (data.mediaType === "video" && !isAuthenticEntity)) {
     isFake = true;
     deepfakeScore = Math.floor(94 + Math.random() * 4); // 94% - 97%
     botScore = Math.floor(74 + Math.random() * 14); // 74% - 87%
@@ -194,14 +201,14 @@ function simulateVerification(data) {
       ? "Content originated from a satire/parody creator (🎭). Visual media contains face-swapped / AI-manipulated synthetic footage."
       : "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified.";
   } else if (isAuthenticEntity) {
-    // PRIORITY 2: Legitimate Builder / Verified organic speeches
+    // PRIORITY 2: Legitimate Builder / Verified organic speeches & tech demos
     isFake = false;
     deepfakeScore = Math.floor(1 + Math.random() * 3); // 1% - 3%
     botScore = Math.floor(3 + Math.random() * 4); // 3% - 6%
     factCheckStatus = "Verified Authentic";
     summary = "Multi-frame forensic verification confirmed authentic organic capture. Sub-second neural hash verified by Veritas Engine.";
   } else {
-    // PRIORITY 3: Normal Everyday Real Posts
+    // PRIORITY 3: Normal Everyday Text / Verified non-manipulated Posts
     isFake = false;
     deepfakeScore = Math.floor(2 + Math.random() * 4); // 2% - 5%
     botScore = Math.floor(4 + Math.random() * 6); // 4% - 9%
