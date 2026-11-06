@@ -9,8 +9,15 @@ import sys
 import os
 import time
 import json
+import urllib.request
 import cv2
 import numpy as np
+
+def ensure_sample_exists(file_path: str, raw_url: str):
+    if not os.path.exists(file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        print(f"[*] Downloading held-out stream asset: {os.path.basename(file_path)}...")
+        urllib.request.urlretrieve(raw_url, file_path)
 
 def compute_spectral_fft_energy(frame: np.ndarray) -> float:
     """
@@ -104,6 +111,12 @@ def run_heldout_reproducible_benchmark():
     
     auth_sample = "samples/authentic_stream.mp4"
     fake_sample = "samples/dfdc_synthetic_stream.mp4"
+    
+    auth_url = "https://raw.githubusercontent.com/mahmudulmd/veritas-x/main/samples/authentic_stream.mp4"
+    fake_url = "https://raw.githubusercontent.com/mahmudulmd/veritas-x/main/samples/dfdc_synthetic_stream.mp4"
+    
+    ensure_sample_exists(auth_sample, auth_url)
+    ensure_sample_exists(fake_sample, fake_url)
     
     print(f"\n[*] Evaluating held-out authentic stream: {auth_sample}")
     res_auth = evaluate_video_clip(auth_sample)
