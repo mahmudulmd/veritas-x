@@ -120,3 +120,4 @@ def evaluate_x_compressed_benchmark(samples_per_category=200):
 
 if __name__ == "__main__":
     evaluate_x_compressed_benchmark()
+

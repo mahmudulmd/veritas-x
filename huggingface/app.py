@@ -215,3 +215,4 @@ with gr.Blocks(title="Veritas for X - Sub-Second Evaluation Space", css=custom_c
 
 if __name__ == "__main__":
     demo.launch(share=False)
+

@@ -1,5 +1,5 @@
 ---
-title: Veritas For X - Sub-Second Multimodal Verification & Deepfake Checkpoint
+title: Veritas For X Eval Checkpoint
 emoji: 🛡️
 colorFrom: blue
 colorTo: gray
@@ -7,8 +7,8 @@ sdk: gradio
 sdk_version: 5.20.0
 app_file: app.py
 pinned: false
-license: proprietary
-short_description: Sub-second deepfake detection & multimodal verification engine on FF++/DFDC X-compressed streams
+license: mit
+short_description: Sub-second multimodal verification on FF++/DFDC
 ---
 
 # 🛡️ Veritas for X: Evaluation Checkpoint (v0.1 Public Harness)
@@ -89,3 +89,4 @@ Veritas for X was engineered from day one to serve as a **turnkey integration in
 - **Direct Email:** [mahmudulhoque934@gmail.com](mailto:mahmudulhoque934@gmail.com)
 - **X Profile:** [@hmahmudulm](https://x.com/hmahmudulm)
 - **Location:** Panchagarh, Bangladesh
+
