@@ -280,14 +280,12 @@ function renderResultCard(postNode, data) {
 function isCommentElement(el) {
   if (!el) return true;
   const label = (el.getAttribute("aria-label") || "").toLowerCase();
-  if (label.includes("comment") || label.includes("মন্তব্য") || label.includes("reply") || label.includes("উত্তর")) {
+  // Comment signatures in English and Bengali
+  if (label.includes("comment by") || label.includes("মন্তব্য করেছেন") || label.includes("reply by") || label.includes("উত্তর দিয়েছেন")) {
     return true;
   }
-  if (el.closest('ul, ol, [aria-label*="Comments" i], [aria-label*="মন্তব্য" i], div[data-visualcompletion="ignore-dynamic"]')) {
-    return true;
-  }
-  // Check if nested inside another article (Facebook comments are nested role="article")
-  if (el.parentElement && el.parentElement.closest('[role="article"]')) {
+  // Check if inside comments list / container
+  if (el.closest('ul, ol, div[aria-label*="Comments" i], div[aria-label*="মন্তব্য" i], div[data-visualcompletion="ignore-dynamic"]')) {
     return true;
   }
   return false;
@@ -312,35 +310,45 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Facebook Feed Posts (Must NOT be a comment)
-    const feedPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div > div[role="article"]');
-    feedPosts.forEach(post => {
+    // 1. Facebook Feed Posts
+    const allPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] div[role="article"], div[role="main"] div[role="article"]');
+    allPosts.forEach(post => {
       if (isCommentElement(post)) return;
       if (post.querySelector(".veritas-verify-btn")) return;
-      const toolBar = post.querySelector('div[role="toolbar"]');
-      if (toolBar && !isCommentElement(toolBar)) {
+
+      // Find the action buttons row (Like / Comment / Share)
+      const actionIcons = post.querySelector('svg[aria-label*="Like" i], svg[aria-label*="পছন্দ" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i], div[aria-label*="Share" i], div[aria-label*="শেয়ার" i]');
+      let actionRow = post.querySelector('div[role="toolbar"]');
+      
+      if (!actionRow && actionIcons) {
+        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.closest('div[class*="x1n2onr6"]') || actionIcons.parentElement?.parentElement;
+      }
+
+      if (actionRow && !isCommentElement(actionRow)) {
         const btn = createVerifyButton(post);
         btn.style.margin = "4px 8px";
-        toolBar.appendChild(btn);
+        btn.style.display = "inline-flex";
+        btn.style.verticalAlign = "middle";
+        actionRow.appendChild(btn);
+      } else {
+        const btn = createVerifyButton(post);
+        btn.style.margin = "8px 16px";
+        post.appendChild(btn);
       }
     });
 
-    // 2. Facebook Reels / Watch View (like user's screenshot)
-    const reelContainers = document.querySelectorAll('div[role="dialog"], div[role="main"]');
-    reelContainers.forEach(container => {
-      const video = container.querySelector("video");
-      if (!video) return;
-      if (container.querySelector(".veritas-verify-btn")) return;
-
-      // Find the main action buttons (Like/Comment/Share column)
-      const actionStack = container.querySelector('div[aria-label*="Share" i]?.parentElement') ||
-                          container.querySelector('div[aria-label*="শেয়ার" i]?.parentElement') ||
-                          container.querySelector('div[role="toolbar"]');
-      
-      if (actionStack && !isCommentElement(actionStack)) {
-        const btn = createVerifyButton(container);
+    // 2. Facebook Reels / Watch View
+    const videoModals = document.querySelectorAll('div[role="dialog"]');
+    videoModals.forEach(modal => {
+      const vid = modal.querySelector("video");
+      if (!vid) return;
+      if (modal.querySelector(".veritas-verify-btn")) return;
+      const shareBtn = modal.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i]');
+      const target = shareBtn ? shareBtn.parentElement : modal.querySelector('div[role="toolbar"]');
+      if (target && !isCommentElement(target)) {
+        const btn = createVerifyButton(modal);
         btn.style.margin = "8px 4px";
-        actionStack.appendChild(btn);
+        target.appendChild(btn);
       }
     });
   } else if (platform === "instagram") {
