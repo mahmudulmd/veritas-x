@@ -202,12 +202,20 @@ function simulateVerification(data) {
 }
 
 function renderResultCard(postNode, data, triggerBtn) {
-  let card = postNode.querySelector("#veritas-unified-card");
+  let card = document.getElementById("veritas-unified-card");
   if (!card) {
     card = document.createElement("div");
     card.id = "veritas-unified-card";
     card.className = "veritas-card veritas-post-card";
   }
+  card.remove(); // Move to current active post
+
+  card.style.display = "block";
+  card.style.visibility = "visible";
+  card.style.opacity = "1";
+  card.style.position = "relative";
+  card.style.zIndex = "9999";
+  card.style.margin = "10px 0";
 
   const isFake = data.is_fake;
   const statusColor = isFake ? "#f4212e" : "#00ba7c";
@@ -266,9 +274,13 @@ function renderResultCard(postNode, data, triggerBtn) {
 
   // Insert right above the action bar where the button was clicked
   if (triggerBtn && triggerBtn.parentElement) {
-    const actionContainer = triggerBtn.parentElement.closest('div[style*="flex"]') || triggerBtn.parentElement;
+    const actionContainer = triggerBtn.parentElement.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || triggerBtn.parentElement;
     if (actionContainer && actionContainer.parentElement) {
       actionContainer.parentElement.insertBefore(card, actionContainer);
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    } else {
+      triggerBtn.parentElement.insertBefore(card, triggerBtn);
       return;
     }
   }
@@ -318,32 +330,43 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // Target each individual feed post container
-    const postContainers = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div > div, div[role="article"]');
-    
-    postContainers.forEach(post => {
-      if (isCommentElement(post)) return;
-      if (post.querySelector(".veritas-verify-btn")) return;
-      
-      // Must contain actual post content (media or text)
-      const hasMediaOrText = post.querySelector("video, img, div[dir='auto']");
-      if (!hasMediaOrText) return;
+    // 1. Direct Target: Every Video on Facebook Feed / Watch
+    const videos = document.querySelectorAll("video");
+    videos.forEach(vid => {
+      if (isCommentElement(vid)) return;
+      const postCard = vid.closest('div[role="article"], div[data-pagelet*="FeedUnit"]') || vid.parentElement?.parentElement?.parentElement;
+      if (!postCard || postCard.querySelector(".veritas-verify-btn")) return;
 
-      // Find the action buttons row (Like, Comment, Share)
-      const actionIcons = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i], svg[aria-label*="Like" i], svg[aria-label*="পছন্দ" i]');
-      let actionRow = post.querySelector('div[role="toolbar"]');
-      
-      if (!actionRow && actionIcons) {
-        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.closest('div[class*="x1n2onr6"]') || actionIcons.parentElement?.parentElement;
-      }
+      // Find the Like / Comment / Share row right below the video
+      const actionRow = postCard.querySelector('div[style*="flex"]:has(svg), div[class*="x1n2onr6"]:has(svg), div[role="toolbar"]') ||
+                        vid.parentElement?.nextElementSibling ||
+                        postCard;
 
-      if (actionRow && !isCommentElement(actionRow)) {
-        const btn = createVerifyButton(post);
-        btn.style.margin = "4px 8px";
-        btn.style.display = "inline-flex";
-        btn.style.verticalAlign = "middle";
+      const btn = createVerifyButton(postCard);
+      btn.style.margin = "6px 10px";
+      btn.style.display = "inline-flex";
+
+      if (actionRow && actionRow !== postCard) {
         actionRow.appendChild(btn);
+      } else {
+        vid.parentElement.appendChild(btn);
       }
+    });
+
+    // 2. Direct Target: All Feed Post Action Bars (Video, Image, Text)
+    const feedActionBars = document.querySelectorAll('div[data-pagelet*="FeedUnit"] div[style*="flex"]:has(svg), div[role="feed"] div[role="article"] div[style*="flex"]:has(svg)');
+    feedActionBars.forEach(bar => {
+      if (bar.closest('ul, ol')) return;
+      if (bar.querySelector(".veritas-verify-btn")) return;
+      if (isCommentElement(bar)) return;
+
+      const post = bar.closest('div[role="article"], div[data-pagelet*="FeedUnit"]') || bar.parentElement;
+      if (!post || post.querySelector(".veritas-verify-btn")) return;
+
+      const btn = createVerifyButton(post);
+      btn.style.margin = "4px 8px";
+      btn.style.display = "inline-flex";
+      bar.appendChild(btn);
     });
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
