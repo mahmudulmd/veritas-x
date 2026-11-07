@@ -279,13 +279,12 @@ function renderResultCard(postNode, data) {
 
 function isCommentElement(el) {
   if (!el) return true;
-  const label = (el.getAttribute("aria-label") || "").toLowerCase();
-  // Comment signatures in English and Bengali
-  if (label.includes("comment by") || label.includes("মন্তব্য করেছেন") || label.includes("reply by") || label.includes("উত্তর দিয়েছেন")) {
+  // Facebook comments are always inside a <ul> or <ol> list
+  if (el.closest('ul, ol')) {
     return true;
   }
-  // Check if inside comments list / container
-  if (el.closest('ul, ol, div[aria-label*="Comments" i], div[aria-label*="মন্তব্য" i], div[data-visualcompletion="ignore-dynamic"]')) {
+  const label = (el.getAttribute("aria-label") || "").toLowerCase();
+  if (label.includes("comment by") || label.includes("মন্তব্য করেছেন") || label.includes("reply by") || label.includes("উত্তর দিয়েছেন")) {
     return true;
   }
   return false;
@@ -296,7 +295,7 @@ function injectVeritasButtons() {
 
   // Cleanup any misplaced buttons inside comments
   if (platform === "facebook") {
-    document.querySelectorAll('ul .veritas-verify-btn, [aria-label*="comment" i] .veritas-verify-btn, [aria-label*="মন্তব্য" i] .veritas-verify-btn').forEach(el => el.remove());
+    document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
   }
 
   if (platform === "x") {
@@ -310,45 +309,49 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Facebook Feed Posts
-    const allPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] div[role="article"], div[role="main"] div[role="article"]');
-    allPosts.forEach(post => {
+    // 1. All Video Posts on Facebook (Newsfeed, Watch, Reels)
+    const videos = document.querySelectorAll("video");
+    videos.forEach(video => {
+      if (isCommentElement(video)) return;
+      
+      const post = video.closest('div[role="article"], div[data-pagelet*="FeedUnit"], div[role="main"] > div') || video.parentElement.parentElement;
+      if (!post || post.querySelector(".veritas-verify-btn")) return;
+
+      // Find the action buttons row (Like, Comment, Share)
+      const actionIcons = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i], svg[aria-label*="Like" i], svg[aria-label*="পছন্দ" i]');
+      let actionRow = post.querySelector('div[role="toolbar"]');
+      if (!actionRow && actionIcons) {
+        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.parentElement?.parentElement;
+      }
+
+      const btn = createVerifyButton(post);
+      btn.style.margin = "6px 10px";
+      btn.style.display = "inline-flex";
+
+      if (actionRow && !isCommentElement(actionRow)) {
+        actionRow.appendChild(btn);
+      } else {
+        // Fallback: place right beneath the video
+        video.parentElement.appendChild(btn);
+      }
+    });
+
+    // 2. Text / Image Feed Posts on Facebook
+    const textPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div');
+    textPosts.forEach(post => {
       if (isCommentElement(post)) return;
       if (post.querySelector(".veritas-verify-btn")) return;
 
-      // Find the action buttons row (Like / Comment / Share)
-      const actionIcons = post.querySelector('svg[aria-label*="Like" i], svg[aria-label*="পছন্দ" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i], div[aria-label*="Share" i], div[aria-label*="শেয়ার" i]');
+      const actionIcons = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i]');
       let actionRow = post.querySelector('div[role="toolbar"]');
-      
       if (!actionRow && actionIcons) {
-        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.closest('div[class*="x1n2onr6"]') || actionIcons.parentElement?.parentElement;
+        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.parentElement?.parentElement;
       }
 
       if (actionRow && !isCommentElement(actionRow)) {
         const btn = createVerifyButton(post);
-        btn.style.margin = "4px 8px";
-        btn.style.display = "inline-flex";
-        btn.style.verticalAlign = "middle";
+        btn.style.margin = "6px 10px";
         actionRow.appendChild(btn);
-      } else {
-        const btn = createVerifyButton(post);
-        btn.style.margin = "8px 16px";
-        post.appendChild(btn);
-      }
-    });
-
-    // 2. Facebook Reels / Watch View
-    const videoModals = document.querySelectorAll('div[role="dialog"]');
-    videoModals.forEach(modal => {
-      const vid = modal.querySelector("video");
-      if (!vid) return;
-      if (modal.querySelector(".veritas-verify-btn")) return;
-      const shareBtn = modal.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i]');
-      const target = shareBtn ? shareBtn.parentElement : modal.querySelector('div[role="toolbar"]');
-      if (target && !isCommentElement(target)) {
-        const btn = createVerifyButton(modal);
-        btn.style.margin = "8px 4px";
-        target.appendChild(btn);
       }
     });
   } else if (platform === "instagram") {
