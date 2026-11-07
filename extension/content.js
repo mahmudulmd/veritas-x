@@ -30,7 +30,7 @@ function createVerifyButton(postNode) {
 
     // 1. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
-      renderResultCard(postNode, verificationCache.get(postKey));
+      renderResultCard(postNode, verificationCache.get(postKey), btn);
       btn.innerHTML = `<span>🛡️ Verified</span>`;
       return;
     }
@@ -42,7 +42,7 @@ function createVerifyButton(postNode) {
     setTimeout(async () => {
       try {
         const edgeRes = simulateVerification(postData);
-        renderResultCard(postNode, edgeRes);
+        renderResultCard(postNode, edgeRes, btn);
         verificationCache.set(postKey, edgeRes);
       } catch (err) {
         console.error("Veritas verification error:", err);
@@ -201,7 +201,7 @@ function simulateVerification(data) {
   }
 }
 
-function renderResultCard(postNode, data) {
+function renderResultCard(postNode, data, triggerBtn) {
   let card = postNode.querySelector("#veritas-unified-card");
   if (!card) {
     card = document.createElement("div");
@@ -264,6 +264,15 @@ function renderResultCard(postNode, data) {
     </div>
   `;
 
+  // Insert right above the action bar where the button was clicked
+  if (triggerBtn && triggerBtn.parentElement) {
+    const actionContainer = triggerBtn.parentElement.closest('div[style*="flex"]') || triggerBtn.parentElement;
+    if (actionContainer && actionContainer.parentElement) {
+      actionContainer.parentElement.insertBefore(card, actionContainer);
+      return;
+    }
+  }
+
   const platform = getPlatform();
   if (platform === "x") {
     const groupBar = postNode.querySelector('div[role="group"]');
@@ -309,48 +318,30 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. All Video Posts on Facebook (Newsfeed, Watch, Reels)
-    const videos = document.querySelectorAll("video");
-    videos.forEach(video => {
-      if (isCommentElement(video)) return;
+    // Target each individual feed post container
+    const postContainers = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div > div, div[role="article"]');
+    
+    postContainers.forEach(post => {
+      if (isCommentElement(post)) return;
+      if (post.querySelector(".veritas-verify-btn")) return;
       
-      const post = video.closest('div[role="article"], div[data-pagelet*="FeedUnit"], div[role="main"] > div') || video.parentElement.parentElement;
-      if (!post || post.querySelector(".veritas-verify-btn")) return;
+      // Must contain actual post content (media or text)
+      const hasMediaOrText = post.querySelector("video, img, div[dir='auto']");
+      if (!hasMediaOrText) return;
 
       // Find the action buttons row (Like, Comment, Share)
       const actionIcons = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i], svg[aria-label*="Like" i], svg[aria-label*="পছন্দ" i]');
       let actionRow = post.querySelector('div[role="toolbar"]');
+      
       if (!actionRow && actionIcons) {
-        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.parentElement?.parentElement;
-      }
-
-      const btn = createVerifyButton(post);
-      btn.style.margin = "6px 10px";
-      btn.style.display = "inline-flex";
-
-      if (actionRow && !isCommentElement(actionRow)) {
-        actionRow.appendChild(btn);
-      } else {
-        // Fallback: place right beneath the video
-        video.parentElement.appendChild(btn);
-      }
-    });
-
-    // 2. Text / Image Feed Posts on Facebook
-    const textPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div');
-    textPosts.forEach(post => {
-      if (isCommentElement(post)) return;
-      if (post.querySelector(".veritas-verify-btn")) return;
-
-      const actionIcons = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="Like" i], div[aria-label*="পছন্দ" i]');
-      let actionRow = post.querySelector('div[role="toolbar"]');
-      if (!actionRow && actionIcons) {
-        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.parentElement?.parentElement;
+        actionRow = actionIcons.closest('div[style*="flex"]') || actionIcons.closest('div[class*="x1n2onr6"]') || actionIcons.parentElement?.parentElement;
       }
 
       if (actionRow && !isCommentElement(actionRow)) {
         const btn = createVerifyButton(post);
-        btn.style.margin = "6px 10px";
+        btn.style.margin = "4px 8px";
+        btn.style.display = "inline-flex";
+        btn.style.verticalAlign = "middle";
         actionRow.appendChild(btn);
       }
     });
