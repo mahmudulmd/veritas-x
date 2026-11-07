@@ -277,46 +277,95 @@ function renderResultCard(postNode, data) {
   }
 }
 
+function isCommentElement(el) {
+  if (!el) return true;
+  const label = (el.getAttribute("aria-label") || "").toLowerCase();
+  if (label.includes("comment") || label.includes("মন্তব্য") || label.includes("reply") || label.includes("উত্তর")) {
+    return true;
+  }
+  if (el.closest('ul, ol, [aria-label*="Comments" i], [aria-label*="মন্তব্য" i], div[data-visualcompletion="ignore-dynamic"]')) {
+    return true;
+  }
+  // Check if nested inside another article (Facebook comments are nested role="article")
+  if (el.parentElement && el.parentElement.closest('[role="article"]')) {
+    return true;
+  }
+  return false;
+}
+
 function injectVeritasButtons() {
   const platform = getPlatform();
-  let posts = [];
 
-  if (platform === "x") {
-    posts = document.querySelectorAll('article[data-testid="tweet"]');
-  } else if (platform === "instagram") {
-    posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
-  } else if (platform === "facebook") {
-    posts = document.querySelectorAll('div[role="article"], div[data-pagelet*="FeedUnit"]');
-  } else if (platform === "youtube") {
-    posts = document.querySelectorAll('ytd-reel-video-renderer, ytd-rich-item-renderer');
+  // Cleanup any misplaced buttons inside comments
+  if (platform === "facebook") {
+    document.querySelectorAll('ul .veritas-verify-btn, [aria-label*="comment" i] .veritas-verify-btn, [aria-label*="মন্তব্য" i] .veritas-verify-btn').forEach(el => el.remove());
   }
 
-  posts.forEach(post => {
-    if (post.querySelector(".veritas-verify-btn")) return;
-    
-    if (platform === "x") {
-      const actionBar = post.querySelector('div[role="group"]');
+  if (platform === "x") {
+    const tweets = document.querySelectorAll('article[data-testid="tweet"]');
+    tweets.forEach(tweet => {
+      if (tweet.querySelector(".veritas-verify-btn")) return;
+      const actionBar = tweet.querySelector('div[role="group"]');
       if (actionBar) {
-        const btn = createVerifyButton(post);
+        const btn = createVerifyButton(tweet);
         actionBar.appendChild(btn);
       }
-    } else if (platform === "instagram") {
-      const actionSection = post.querySelector('section._aamu, div._aamv') || post;
-      const btn = createVerifyButton(post);
-      btn.style.margin = "8px";
-      actionSection.appendChild(btn);
-    } else if (platform === "facebook") {
-      const toolBar = post.querySelector('div[role="toolbar"]') || post;
-      const btn = createVerifyButton(post);
-      btn.style.margin = "8px";
-      toolBar.appendChild(btn);
-    } else if (platform === "youtube") {
-      const actions = post.querySelector('#actions, #like-button') || post;
-      const btn = createVerifyButton(post);
-      btn.style.margin = "8px";
-      actions.appendChild(btn);
-    }
-  });
+    });
+  } else if (platform === "facebook") {
+    // 1. Facebook Feed Posts (Must NOT be a comment)
+    const feedPosts = document.querySelectorAll('div[data-pagelet*="FeedUnit"], div[role="feed"] > div > div[role="article"]');
+    feedPosts.forEach(post => {
+      if (isCommentElement(post)) return;
+      if (post.querySelector(".veritas-verify-btn")) return;
+      const toolBar = post.querySelector('div[role="toolbar"]');
+      if (toolBar && !isCommentElement(toolBar)) {
+        const btn = createVerifyButton(post);
+        btn.style.margin = "4px 8px";
+        toolBar.appendChild(btn);
+      }
+    });
+
+    // 2. Facebook Reels / Watch View (like user's screenshot)
+    const reelContainers = document.querySelectorAll('div[role="dialog"], div[role="main"]');
+    reelContainers.forEach(container => {
+      const video = container.querySelector("video");
+      if (!video) return;
+      if (container.querySelector(".veritas-verify-btn")) return;
+
+      // Find the main action buttons (Like/Comment/Share column)
+      const actionStack = container.querySelector('div[aria-label*="Share" i]?.parentElement') ||
+                          container.querySelector('div[aria-label*="শেয়ার" i]?.parentElement') ||
+                          container.querySelector('div[role="toolbar"]');
+      
+      if (actionStack && !isCommentElement(actionStack)) {
+        const btn = createVerifyButton(container);
+        btn.style.margin = "8px 4px";
+        actionStack.appendChild(btn);
+      }
+    });
+  } else if (platform === "instagram") {
+    const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
+    posts.forEach(post => {
+      if (post.querySelector(".veritas-verify-btn")) return;
+      const actionSection = post.querySelector('section._aamu, div._aamv');
+      if (actionSection) {
+        const btn = createVerifyButton(post);
+        btn.style.margin = "8px 4px";
+        actionSection.appendChild(btn);
+      }
+    });
+  } else if (platform === "youtube") {
+    const posts = document.querySelectorAll('ytd-reel-video-renderer, ytd-rich-item-renderer');
+    posts.forEach(post => {
+      if (post.querySelector(".veritas-verify-btn")) return;
+      const actions = post.querySelector('#actions, #like-button');
+      if (actions) {
+        const btn = createVerifyButton(post);
+        btn.style.margin = "8px 4px";
+        actions.appendChild(btn);
+      }
+    });
+  }
 }
 
 const observer = new MutationObserver(() => {
