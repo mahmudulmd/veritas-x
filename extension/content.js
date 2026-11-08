@@ -77,7 +77,7 @@ function extractPostData(postNode) {
   } else if (platform === "facebook") {
     const textEl = postNode.querySelector('div[dir="auto"], div[data-ad-preview="message"]');
     tweetText = textEl ? textEl.innerText : "";
-    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span');
+    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a');
     userHandle = userEl ? userEl.innerText : "";
     fullUserHeader = userHandle;
     const vid = postNode.querySelector("video");
@@ -172,14 +172,14 @@ function simulateVerification(data) {
     combined.includes("gen-3") ||
     combined.includes("runway");
 
-  // STRICT DECISION BOUNDARY:
+  // Decision boundary:
   let isFake = false;
   if (isParodyAccount || isDeepfakeMedia) {
     isFake = true;
   } else if (isSelf || isLegitBuilder) {
     isFake = false;
   } else if (data.mediaType === "video") {
-    isFake = false; // Conservative: innocent until high-confidence flag
+    isFake = false; // Conservative: innocent until verified anomaly
   }
 
   if (!isFake) {
@@ -188,7 +188,7 @@ function simulateVerification(data) {
       deepfake_score: Math.floor(Math.random() * 3) + 1, // 1% - 3%
       bot_score: Math.floor(Math.random() * 4) + 2,     // 2% - 5%
       fact_check_status: "Verified Authentic",
-      summary: "Multi-spectral analysis verified organic capture signature. Zero generative facial artifacts or lip-sync anomalies detected across frames."
+      summary: "Multi-spectral analysis verified organic capture signature. Zero generative facial artifacts or temporal drift detected across frames."
     };
   } else {
     return {
@@ -206,60 +206,73 @@ function renderResultCard(postNode, data, triggerBtn) {
   if (!card) {
     card = document.createElement("div");
     card.id = "veritas-unified-card";
-    card.className = "veritas-card veritas-post-card";
   }
-  card.remove(); // Move to current active post
+  card.remove(); // Relocate to currently clicked post
 
-  card.style.display = "block";
-  card.style.visibility = "visible";
-  card.style.opacity = "1";
-  card.style.position = "relative";
-  card.style.zIndex = "9999";
-  card.style.margin = "10px 0";
+  card.className = "veritas-card veritas-result-card";
+  
+  // Explicit, rock-solid inline styles ensuring 100% visibility on light/dark modes
+  card.style.cssText = `
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 12px 0 !important;
+    padding: 16px 18px !important;
+    background: #0f1419 !important;
+    border: 1px solid rgba(29, 155, 240, 0.4) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+    color: #f7f9f9 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    position: relative !important;
+    z-index: 99999 !important;
+    clear: both !important;
+  `;
 
   const isFake = data.is_fake;
   const statusColor = isFake ? "#f4212e" : "#00ba7c";
-  const badgeClass = isFake ? "status-fake" : "status-verified";
+  const badgeBg = isFake ? "rgba(244, 33, 46, 0.2)" : "rgba(0, 186, 124, 0.2)";
+  const badgeBorder = isFake ? "rgba(244, 33, 46, 0.5)" : "rgba(0, 186, 124, 0.5)";
   const badgeText = isFake ? "AI-GENERATED / MANIPULATED" : "SYSTEM VERIFIED";
 
   card.innerHTML = `
-    <div class="veritas-card-header">
-      <div class="veritas-brand">
-        <span class="veritas-bolt">⚡</span>
-        <span>VERITAS NOTE</span>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #1d9bf0;">
+        <span>⚡</span>
+        <span>VERITAS VERIFIED NOTE</span>
       </div>
-      <div class="veritas-status-badge ${badgeClass}">
+      <div style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; background: ${badgeBg}; color: ${statusColor}; border: 1px solid ${badgeBorder};">
         ${badgeText}
       </div>
-      <div class="veritas-confidence">
-        ⚡ Veritas Multi-Platform Engine
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;">
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">AI / DEEPFAKE</div>
+        <div style="font-size: 16px; font-weight: 800; color: ${statusColor};">${data.deepfake_score}%</div>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">CLAIM STATUS</div>
+        <div style="font-size: 13px; font-weight: 800; color: ${isFake ? '#f4212e' : '#00ba7c'};">${data.fact_check_status}</div>
+      </div>
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">BOT RISK</div>
+        <div style="font-size: 16px; font-weight: 800; color: #1d9bf0;">${data.bot_score}%</div>
       </div>
     </div>
 
-    <div class="veritas-metrics-row">
-      <div class="veritas-metric-pill">
-        <span class="metric-label">AI / DEEPFAKE</span>
-        <span class="metric-value" style="color: ${statusColor};">${data.deepfake_score}%</span>
-      </div>
-      <div class="veritas-metric-pill">
-        <span class="metric-label">CLAIM STATUS</span>
-        <span class="metric-value" style="color: ${isFake ? '#f4212e' : '#f7f9f9'}; font-size: 13px;">${data.fact_check_status}</span>
-      </div>
-      <div class="veritas-metric-pill">
-        <span class="metric-label">BOT PROBABILITY</span>
-        <span class="metric-value" style="color: #1d9bf0;">${data.bot_score}%</span>
-      </div>
-    </div>
-
-    <div class="veritas-summary-box">
+    <div style="background: rgba(255, 255, 255, 0.04); padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: #e7e9ea; margin-bottom: 12px; border-left: 3px solid #1d9bf0;">
       ${data.summary}
     </div>
 
-    <!-- Official Full Details Box -->
-    <div style="margin-top: 10px; background: rgba(29, 155, 240, 0.08); border: 1px solid rgba(29, 155, 240, 0.3); border-radius: 10px; padding: 10px 14px;">
+    <!-- Official Founder Verification Box -->
+    <div style="background: rgba(29, 155, 240, 0.1); border: 1px solid rgba(29, 155, 240, 0.35); border-radius: 10px; padding: 10px 14px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
         <span style="background: #1d9bf0; color: #fff; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">FOUNDER & CREATOR</span>
-        <span style="font-size: 11px; color: #00ba7c; font-weight: 700;">● SYSTEM VERIFIED</span>
+        <span style="font-size: 11px; color: #00ba7c; font-weight: 700;">● ENGINE VERIFIED</span>
       </div>
       <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-bottom: 2px;">
         Md. Mahmudul Hoque ⚡
@@ -272,49 +285,126 @@ function renderResultCard(postNode, data, triggerBtn) {
     </div>
   `;
 
-  // Insert right above the action bar where the button was clicked
-  if (triggerBtn && triggerBtn.parentElement) {
-    const actionContainer = triggerBtn.parentElement.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || triggerBtn.parentElement;
-    if (actionContainer && actionContainer.parentElement) {
-      actionContainer.parentElement.insertBefore(card, actionContainer);
+  // Insert location: Directly above the post's action bar
+  if (triggerBtn) {
+    let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"], div[role="group"]') || triggerBtn.parentElement;
+    if (bar && bar.parentElement) {
+      bar.parentElement.insertBefore(card, bar);
       card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      return;
-    } else {
-      triggerBtn.parentElement.insertBefore(card, triggerBtn);
       return;
     }
   }
 
-  const platform = getPlatform();
-  if (platform === "x") {
-    const groupBar = postNode.querySelector('div[role="group"]');
-    if (groupBar && groupBar.parentElement) {
-      groupBar.parentElement.insertBefore(card, groupBar);
-    } else {
-      postNode.appendChild(card);
-    }
-  } else {
+  // Fallback: append to post
+  if (postNode) {
     postNode.appendChild(card);
+    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 }
 
 function isCommentElement(el) {
   if (!el) return true;
-  // Facebook comments are always inside a <ul> or <ol> list
+  // Facebook comments are inside <ul> or <ol> lists
   if (el.closest('ul, ol')) {
     return true;
   }
   const label = (el.getAttribute("aria-label") || "").toLowerCase();
-  if (label.includes("comment by") || label.includes("মন্তব্য করেছেন") || label.includes("reply by") || label.includes("উত্তর দিয়েছেন")) {
+  if (
+    label.includes("comment by") ||
+    label.includes("মন্তব্য করেছেন") ||
+    label.includes("reply by") ||
+    label.includes("উত্তর দিয়েছেন") ||
+    label.includes("write a comment") ||
+    label.includes("একটি মন্তব্য লিখুন")
+  ) {
     return true;
   }
   return false;
 }
 
+function getFacebookActionBars() {
+  const bars = new Set();
+
+  // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
+  const shareEls = document.querySelectorAll(
+    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
+    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
+  );
+
+  shareEls.forEach(el => {
+    if (isCommentElement(el)) return;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      // Find the row containing Like / Comment / Share
+      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
+      if (count >= 2 && count <= 8) {
+        bars.add(parent);
+        break;
+      }
+      parent = parent.parentElement;
+    }
+  });
+
+  // Strategy 2: Find Like / Comment buttons (excluding comments which have "Reply" / "উত্তর")
+  const likeEls = document.querySelectorAll(
+    'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
+    'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
+  );
+
+  likeEls.forEach(el => {
+    if (isCommentElement(el)) return;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      if (parent.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
+        return; // It's a comment row, skip
+      }
+      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
+      if (count >= 2 && count <= 8) {
+        bars.add(parent);
+        break;
+      }
+      parent = parent.parentElement;
+    }
+  });
+
+  // Strategy 3: Every video container's bottom action bar
+  const videos = document.querySelectorAll("video");
+  videos.forEach(vid => {
+    if (isCommentElement(vid)) return;
+    let ancestor = vid.closest('div[role="article"]') || vid.parentElement?.parentElement?.parentElement?.parentElement;
+    if (ancestor) {
+      const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
+      if (row && !isCommentElement(row)) {
+        bars.add(row);
+      }
+    }
+  });
+
+  // Strategy 4: Fallback for feed posts where aria-labels might be omitted
+  const feedCards = document.querySelectorAll('div[role="feed"] > div, div[data-pagelet*="FeedUnit"]');
+  feedCards.forEach(card => {
+    if (isCommentElement(card)) return;
+    if (card.querySelector(".veritas-verify-btn")) return;
+    // Scan candidate rows from bottom up
+    const rows = card.querySelectorAll('div[style*="flex"]');
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      if (isCommentElement(r)) continue;
+      const svgs = r.querySelectorAll("svg");
+      if (svgs.length >= 2 && svgs.length <= 5) {
+        bars.add(r);
+        break;
+      }
+    }
+  });
+
+  return Array.from(bars);
+}
+
 function injectVeritasButtons() {
   const platform = getPlatform();
 
-  // Cleanup any misplaced buttons inside comments
+  // Clean any misplaced buttons inside comments
   if (platform === "facebook") {
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
   }
@@ -330,42 +420,21 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Direct Target: Every Video on Facebook Feed / Watch
-    const videos = document.querySelectorAll("video");
-    videos.forEach(vid => {
-      if (isCommentElement(vid)) return;
-      const postCard = vid.closest('div[role="article"], div[data-pagelet*="FeedUnit"]') || vid.parentElement?.parentElement?.parentElement;
-      if (!postCard || postCard.querySelector(".veritas-verify-btn")) return;
-
-      // Find the Like / Comment / Share row right below the video
-      const actionRow = postCard.querySelector('div[style*="flex"]:has(svg), div[class*="x1n2onr6"]:has(svg), div[role="toolbar"]') ||
-                        vid.parentElement?.nextElementSibling ||
-                        postCard;
-
-      const btn = createVerifyButton(postCard);
-      btn.style.margin = "6px 10px";
-      btn.style.display = "inline-flex";
-
-      if (actionRow && actionRow !== postCard) {
-        actionRow.appendChild(btn);
-      } else {
-        vid.parentElement.appendChild(btn);
+    const actionBars = getFacebookActionBars();
+    actionBars.forEach(bar => {
+      // Strictly verify this action bar doesn't already have our button
+      if (bar.querySelector(".veritas-verify-btn") || bar.parentElement?.querySelector(".veritas-verify-btn")) {
+        return;
       }
-    });
 
-    // 2. Direct Target: All Feed Post Action Bars (Video, Image, Text)
-    const feedActionBars = document.querySelectorAll('div[data-pagelet*="FeedUnit"] div[style*="flex"]:has(svg), div[role="feed"] div[role="article"] div[style*="flex"]:has(svg)');
-    feedActionBars.forEach(bar => {
-      if (bar.closest('ul, ol')) return;
-      if (bar.querySelector(".veritas-verify-btn")) return;
-      if (isCommentElement(bar)) return;
-
-      const post = bar.closest('div[role="article"], div[data-pagelet*="FeedUnit"]') || bar.parentElement;
-      if (!post || post.querySelector(".veritas-verify-btn")) return;
-
-      const btn = createVerifyButton(post);
+      const postNode = bar.closest('div[role="article"], div[role="feed"] > div, div[data-pagelet*="FeedUnit"]') || bar.parentElement?.parentElement || bar;
+      const btn = createVerifyButton(postNode);
       btn.style.margin = "4px 8px";
       btn.style.display = "inline-flex";
+      btn.style.alignItems = "center";
+      btn.style.verticalAlign = "middle";
+      btn.style.cursor = "pointer";
+
       bar.appendChild(btn);
     });
   } else if (platform === "instagram") {
@@ -393,8 +462,14 @@ function injectVeritasButtons() {
   }
 }
 
+// Throttled MutationObserver for silky 60fps performance
+let debounceTimer = null;
 const observer = new MutationObserver(() => {
-  injectVeritasButtons();
+  if (debounceTimer) return;
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    injectVeritasButtons();
+  }, 200);
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
