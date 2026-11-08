@@ -27,18 +27,19 @@ function createVerifyButton(postNode) {
 
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
-    if (existingCard && existingCard.dataset.currentPost === (postNode.id || postNode.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
+    const realPost = findRealFacebookPostContainer(btn);
+    if (existingCard && existingCard.parentElement === realPost && existingCard.style.display !== "none") {
       existingCard.style.display = "none";
       btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
       return;
     }
     
-    const postData = extractPostData(postNode);
+    const postData = extractPostData(realPost || postNode);
     const postKey = ((postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 100)).trim();
 
     // 1. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
-      renderResultCard(postNode, verificationCache.get(postKey), btn);
+      renderResultCard(realPost || postNode, verificationCache.get(postKey), btn);
       btn.innerHTML = `<span>🛡️ Verified</span>`;
       return;
     }
@@ -49,7 +50,7 @@ function createVerifyButton(postNode) {
     setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
-        renderResultCard(postNode, edgeRes, btn);
+        renderResultCard(realPost || postNode, edgeRes, btn);
         verificationCache.set(postKey, edgeRes);
       } catch (err) {
         console.error("Veritas verification error:", err);
@@ -60,6 +61,25 @@ function createVerifyButton(postNode) {
   });
 
   return btn;
+}
+
+function findRealFacebookPostContainer(el) {
+  if (!el) return null;
+  let curr = el;
+  let best = el;
+  while (curr && curr !== document.body) {
+    if (curr.getAttribute("role") === "article" && !isCommentElement(curr)) {
+      return curr;
+    }
+    if (curr.parentElement && (curr.parentElement.getAttribute("role") === "feed" || curr.parentElement.getAttribute("role") === "main")) {
+      return curr;
+    }
+    if (curr.querySelector("video, img[src*='fbcdn']") && curr.querySelector("h2, h3, strong, a[role='link'] span")) {
+      best = curr;
+    }
+    curr = curr.parentElement;
+  }
+  return best;
 }
 
 function extractPostData(postNode) {
@@ -223,7 +243,6 @@ function renderResultCard(postNode, data, triggerBtn) {
     card.id = "veritas-unified-card";
   }
   card.remove(); // Relocate to currently clicked post
-  card.dataset.currentPost = postNode.id || postNode.innerText.slice(0, 30);
 
   card.className = "veritas-card veritas-result-card";
   
@@ -325,31 +344,24 @@ function renderResultCard(postNode, data, triggerBtn) {
     });
   }
 
-  // INSERTION LOGIC:
-  // Place card directly inside postNode, right above the entire footer section (NOT trapped inside a 44px button wrapper!)
-  let inserted = false;
-  if (triggerBtn && postNode) {
-    let topSection = triggerBtn;
-    while (topSection && topSection.parentElement && topSection.parentElement !== postNode) {
-      topSection = topSection.parentElement;
+  // BULLETPROOF INSERTION:
+  // Find the true post container (child of feed or role="article")
+  const realPost = findRealFacebookPostContainer(triggerBtn || postNode);
+  
+  if (realPost) {
+    // Find the direct child of realPost that contains triggerBtn (the footer/action section)
+    let footerSection = triggerBtn;
+    while (footerSection && footerSection.parentElement && footerSection.parentElement !== realPost) {
+      footerSection = footerSection.parentElement;
     }
-    if (topSection && topSection.parentElement === postNode) {
-      postNode.insertBefore(card, topSection);
-      inserted = true;
-    }
-  }
 
-  if (!inserted) {
-    if (triggerBtn && triggerBtn.parentElement) {
-      let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"], div[role="group"]') || triggerBtn.parentElement;
-      if (bar && bar.parentElement) {
-        bar.parentElement.insertBefore(card, bar);
-      } else {
-        postNode.appendChild(card);
-      }
-    } else if (postNode) {
-      postNode.appendChild(card);
+    if (footerSection && footerSection.parentElement === realPost) {
+      realPost.insertBefore(card, footerSection);
+    } else {
+      realPost.appendChild(card);
     }
+  } else if (postNode) {
+    postNode.appendChild(card);
   }
 
   // Unclip all ancestor containers so Facebook never cuts off the height!
@@ -359,15 +371,21 @@ function renderResultCard(postNode, data, triggerBtn) {
       p.style.setProperty("overflow", "visible", "important");
       p.style.setProperty("overflow-y", "visible", "important");
       p.style.setProperty("max-height", "none", "important");
-      p.style.setProperty("height", "auto", "important");
+      if (p.style.height && p.style.height !== "auto") {
+        p.style.setProperty("height", "auto", "important");
+      }
     }
     p = p.parentElement;
   }
 
-  // Smoothly center the full card on screen so user sees all % metrics and summary
+  // Height fail-safe check: If somehow rendered height is still squeezed, elevate to realPost.appendChild
   setTimeout(() => {
+    const rect = card.getBoundingClientRect();
+    if (rect.height < 150 && realPost && card.parentElement !== realPost) {
+      realPost.appendChild(card);
+    }
     card.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 60);
+  }, 80);
 }
 
 function isCommentElement(el) {
@@ -484,19 +502,19 @@ function injectVeritasButtons() {
     const processedPosts = new Set();
 
     actionBars.forEach(bar => {
-      // Find the post container for this action bar
-      const postNode = bar.closest('div[role="article"], div[role="feed"] > div, div[data-pagelet*="FeedUnit"]') || bar.parentElement?.parentElement?.parentElement || bar;
+      // Find the real post container
+      const realPost = findRealFacebookPostContainer(bar);
       
       // If we already processed this post in this run, or if it already has a button, SKIP!
-      if (processedPosts.has(postNode)) return;
-      if (postNode.querySelector(".veritas-verify-btn")) {
-        processedPosts.add(postNode);
+      if (processedPosts.has(realPost)) return;
+      if (realPost.querySelector(".veritas-verify-btn")) {
+        processedPosts.add(realPost);
         return;
       }
 
-      processedPosts.add(postNode);
+      processedPosts.add(realPost);
 
-      const btn = createVerifyButton(postNode);
+      const btn = createVerifyButton(realPost);
       btn.style.margin = "4px 8px";
       btn.style.display = "inline-flex";
       btn.style.alignItems = "center";
