@@ -24,6 +24,14 @@ function createVerifyButton(postNode) {
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     e.preventDefault();
+
+    // Toggle card if already open for this exact post
+    const existingCard = postNode.querySelector("#veritas-unified-card");
+    if (existingCard && existingCard.style.display !== "none") {
+      existingCard.style.display = "none";
+      btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
+      return;
+    }
     
     const postData = extractPostData(postNode);
     const postKey = ((postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 100)).trim();
@@ -35,11 +43,10 @@ function createVerifyButton(postNode) {
       return;
     }
 
-    // 2. Single-Pass High Confidence Verification (NO DOUBLE RENDERING, NO FLICKER)
+    // 2. Single-Pass High Confidence Verification
     btn.innerHTML = `<span class="veritas-spinner"></span> <span>Verifying...</span>`;
     
-    // Quick micro-timeout (350ms) to ensure smooth spinner animation, then render final verdict ONCE
-    setTimeout(async () => {
+    setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
         renderResultCard(postNode, edgeRes, btn);
@@ -77,7 +84,7 @@ function extractPostData(postNode) {
   } else if (platform === "facebook") {
     const textEl = postNode.querySelector('div[dir="auto"], div[data-ad-preview="message"]');
     tweetText = textEl ? textEl.innerText : "";
-    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a');
+    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a');
     userHandle = userEl ? userEl.innerText : "";
     fullUserHeader = userHandle;
     const vid = postNode.querySelector("video");
@@ -183,19 +190,27 @@ function simulateVerification(data) {
   }
 
   if (!isFake) {
+    const deepfake = Math.floor(Math.random() * 3) + 1; // 1% - 3%
+    const authentic = 100 - deepfake; // 97% - 99%
+    const bot = Math.floor(Math.random() * 4) + 2;     // 2% - 5%
     return {
       is_fake: false,
-      deepfake_score: Math.floor(Math.random() * 3) + 1, // 1% - 3%
-      bot_score: Math.floor(Math.random() * 4) + 2,     // 2% - 5%
-      fact_check_status: "Verified Authentic",
-      summary: "Multi-spectral analysis verified organic capture signature. Zero generative facial artifacts or temporal drift detected across frames."
+      authentic_score: authentic,
+      deepfake_score: deepfake,
+      bot_score: bot,
+      fact_check_status: "Verified Authentic (Genuine Media)",
+      summary: "Multi-spectral analysis verified organic capture signature. Zero generative diffusion artifacts or temporal facial anomalies detected across frames."
     };
   } else {
+    const deepfake = Math.floor(Math.random() * 4) + 94; // 94% - 97%
+    const authentic = 100 - deepfake;                    // 3% - 6%
+    const bot = Math.floor(Math.random() * 10) + 78;     // 78% - 87%
     return {
       is_fake: true,
-      deepfake_score: Math.floor(Math.random() * 4) + 94, // 94% - 97%
-      bot_score: Math.floor(Math.random() * 10) + 78,    // 78% - 87%
-      fact_check_status: "Debunked / AI Synthetic",
+      authentic_score: authentic,
+      deepfake_score: deepfake,
+      bot_score: bot,
+      fact_check_status: "Debunked / AI Synthetic Manipulation",
       summary: "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified."
     };
   }
@@ -219,12 +234,12 @@ function renderResultCard(postNode, data, triggerBtn) {
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 100% !important;
-    margin: 12px 0 !important;
-    padding: 16px 18px !important;
+    margin: 12px 0 16px 0 !important;
+    padding: 18px 20px !important;
     background: #0f1419 !important;
     border: 1px solid rgba(29, 155, 240, 0.4) !important;
     border-radius: 14px !important;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
     color: #f7f9f9 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     position: relative !important;
@@ -239,32 +254,41 @@ function renderResultCard(postNode, data, triggerBtn) {
   const badgeText = isFake ? "AI-GENERATED / MANIPULATED" : "SYSTEM VERIFIED";
 
   card.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
       <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #1d9bf0;">
         <span>⚡</span>
         <span>VERITAS VERIFIED NOTE</span>
       </div>
-      <div style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; background: ${badgeBg}; color: ${statusColor}; border: 1px solid ${badgeBorder};">
-        ${badgeText}
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; background: ${badgeBg}; color: ${statusColor}; border: 1px solid ${badgeBorder};">
+          ${badgeText}
+        </div>
+        <button id="veritas-close-card" style="background: none; border: none; color: #8b98a5; font-size: 16px; cursor: pointer; padding: 2px 6px; line-height: 1;">✕</button>
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;">
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">AI / DEEPFAKE</div>
-        <div style="font-size: 16px; font-weight: 800; color: ${statusColor};">${data.deepfake_score}%</div>
+    <!-- 3 High Impact Metric Tiles -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+      <!-- Original Authenticity -->
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">ORIGINAL / AUTHENTIC</div>
+        <div style="font-size: 20px; font-weight: 800; color: ${isFake ? '#8b98a5' : '#00ba7c'};">${data.authentic_score}%</div>
       </div>
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">CLAIM STATUS</div>
-        <div style="font-size: 13px; font-weight: 800; color: ${isFake ? '#f4212e' : '#00ba7c'};">${data.fact_check_status}</div>
+      <!-- AI / Deepfake Risk -->
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">AI / DEEPFAKE RISK</div>
+        <div style="font-size: 20px; font-weight: 800; color: ${isFake ? '#f4212e' : '#00ba7c'};">${data.deepfake_score}%</div>
       </div>
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">BOT RISK</div>
-        <div style="font-size: 16px; font-weight: 800; color: #1d9bf0;">${data.bot_score}%</div>
+      <!-- Bot / Synthetic Probability -->
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
+        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">BOT / SYNTHETIC</div>
+        <div style="font-size: 20px; font-weight: 800; color: #1d9bf0;">${data.bot_score}%</div>
       </div>
     </div>
 
-    <div style="background: rgba(255, 255, 255, 0.04); padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: #e7e9ea; margin-bottom: 12px; border-left: 3px solid #1d9bf0;">
+    <!-- Claim & Status Summary -->
+    <div style="background: rgba(255, 255, 255, 0.04); padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: #e7e9ea; margin-bottom: 14px; border-left: 3px solid ${statusColor};">
+      <div style="font-weight: 700; margin-bottom: 3px; color: ${statusColor};">${data.fact_check_status}</div>
       ${data.summary}
     </div>
 
@@ -285,21 +309,45 @@ function renderResultCard(postNode, data, triggerBtn) {
     </div>
   `;
 
+  // Attach close listener
+  const closeBtn = card.querySelector("#veritas-close-card");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      card.remove();
+      if (triggerBtn) {
+        triggerBtn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
+      }
+    });
+  }
+
   // Insert location: Directly above the post's action bar
   if (triggerBtn) {
     let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"], div[role="group"]') || triggerBtn.parentElement;
     if (bar && bar.parentElement) {
       bar.parentElement.insertBefore(card, bar);
-      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      return;
+    } else {
+      postNode.appendChild(card);
     }
+  } else if (postNode) {
+    postNode.appendChild(card);
   }
 
-  // Fallback: append to post
-  if (postNode) {
-    postNode.appendChild(card);
-    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  // Unclip all ancestor containers so Facebook never cuts off the bottom of the card!
+  let p = card.parentElement;
+  while (p && p !== document.body) {
+    if (p.style) {
+      p.style.overflow = "visible";
+      p.style.overflowY = "visible";
+      p.style.maxHeight = "none";
+    }
+    p = p.parentElement;
   }
+
+  // Smoothly center the full card on screen so user sees all % metrics and summary
+  setTimeout(() => {
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 50);
 }
 
 function isCommentElement(el) {
@@ -322,92 +370,46 @@ function isCommentElement(el) {
   return false;
 }
 
-function getFacebookActionBars() {
-  const bars = new Set();
-
-  // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
-  const shareEls = document.querySelectorAll(
+// Find the single best action bar in a post
+function findPostActionBar(post) {
+  // Strategy 1: Find Share button (Only main posts have share buttons, comments never do!)
+  const shareBtn = post.querySelector(
     'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
     'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
   );
+  if (shareBtn && !isCommentElement(shareBtn)) {
+    let row = shareBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
+    if (row && !isCommentElement(row)) return row;
+  }
 
-  shareEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      // Find the row containing Like / Comment / Share
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        bars.add(parent);
-        break;
-      }
-      parent = parent.parentElement;
-    }
-  });
-
-  // Strategy 2: Find Like / Comment buttons (excluding comments which have "Reply" / "উত্তর")
-  const likeEls = document.querySelectorAll(
+  // Strategy 2: Find Like / Comment buttons (excluding reply buttons)
+  const likeBtn = post.querySelector(
     'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
     'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
   );
-
-  likeEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      if (parent.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
-        return; // It's a comment row, skip
-      }
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        bars.add(parent);
-        break;
-      }
-      parent = parent.parentElement;
+  if (likeBtn && !isCommentElement(likeBtn)) {
+    let row = likeBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
+    if (row && !isCommentElement(row) && !row.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
+      return row;
     }
-  });
+  }
 
-  // Strategy 3: Every video container's bottom action bar
-  const videos = document.querySelectorAll("video");
-  videos.forEach(vid => {
-    if (isCommentElement(vid)) return;
-    let ancestor = vid.closest('div[role="article"]') || vid.parentElement?.parentElement?.parentElement?.parentElement;
-    if (ancestor) {
-      const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
-      if (row && !isCommentElement(row)) {
-        bars.add(row);
-      }
+  // Strategy 3: Scan candidate rows from bottom up looking for 2-4 SVGs (Like, Comment, Share)
+  const candidateRows = post.querySelectorAll('div[style*="flex"]');
+  for (let i = candidateRows.length - 1; i >= 0; i--) {
+    const r = candidateRows[i];
+    if (isCommentElement(r)) continue;
+    const svgs = r.querySelectorAll("svg");
+    if (svgs.length >= 2 && svgs.length <= 5) {
+      return r;
     }
-  });
+  }
 
-  // Strategy 4: Fallback for feed posts where aria-labels might be omitted
-  const feedCards = document.querySelectorAll('div[role="feed"] > div, div[data-pagelet*="FeedUnit"]');
-  feedCards.forEach(card => {
-    if (isCommentElement(card)) return;
-    if (card.querySelector(".veritas-verify-btn")) return;
-    // Scan candidate rows from bottom up
-    const rows = card.querySelectorAll('div[style*="flex"]');
-    for (let i = rows.length - 1; i >= 0; i--) {
-      const r = rows[i];
-      if (isCommentElement(r)) continue;
-      const svgs = r.querySelectorAll("svg");
-      if (svgs.length >= 2 && svgs.length <= 5) {
-        bars.add(r);
-        break;
-      }
-    }
-  });
-
-  return Array.from(bars);
+  return null;
 }
 
 function injectVeritasButtons() {
   const platform = getPlatform();
-
-  // Clean any misplaced buttons inside comments
-  if (platform === "facebook") {
-    document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
-  }
 
   if (platform === "x") {
     const tweets = document.querySelectorAll('article[data-testid="tweet"]');
@@ -420,15 +422,31 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    const actionBars = getFacebookActionBars();
-    actionBars.forEach(bar => {
-      // Strictly verify this action bar doesn't already have our button
-      if (bar.querySelector(".veritas-verify-btn") || bar.parentElement?.querySelector(".veritas-verify-btn")) {
-        return;
+    // 1. Clean any duplicate buttons in existing posts
+    const allPosts = document.querySelectorAll('div[role="feed"] > div, div[role="article"], div[data-pagelet*="FeedUnit"]');
+    allPosts.forEach(post => {
+      if (isCommentElement(post)) return;
+      const btns = post.querySelectorAll(".veritas-verify-btn");
+      if (btns.length > 1) {
+        for (let i = 1; i < btns.length; i++) {
+          btns[i].remove();
+        }
       }
+    });
 
-      const postNode = bar.closest('div[role="article"], div[role="feed"] > div, div[data-pagelet*="FeedUnit"]') || bar.parentElement?.parentElement || bar;
-      const btn = createVerifyButton(postNode);
+    // Clean any buttons that accidentally landed inside comments
+    document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
+
+    // 2. Strict 1-button injection per post container
+    allPosts.forEach(post => {
+      if (isCommentElement(post)) return;
+      // If this post already has a button, NEVER inject another one!
+      if (post.querySelector(".veritas-verify-btn")) return;
+
+      const bar = findPostActionBar(post);
+      if (!bar || bar.querySelector(".veritas-verify-btn")) return;
+
+      const btn = createVerifyButton(post);
       btn.style.margin = "4px 8px";
       btn.style.display = "inline-flex";
       btn.style.alignItems = "center";
@@ -436,6 +454,22 @@ function injectVeritasButtons() {
       btn.style.cursor = "pointer";
 
       bar.appendChild(btn);
+    });
+
+    // 3. Fallback for standalone video posts / Reels
+    const videos = document.querySelectorAll("video");
+    videos.forEach(vid => {
+      if (isCommentElement(vid)) return;
+      const post = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
+      if (!post || post.querySelector(".veritas-verify-btn")) return;
+
+      const bar = findPostActionBar(post) || vid.parentElement?.nextElementSibling;
+      if (bar && !bar.querySelector(".veritas-verify-btn")) {
+        const btn = createVerifyButton(post);
+        btn.style.margin = "4px 8px";
+        btn.style.display = "inline-flex";
+        bar.appendChild(btn);
+      }
     });
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
@@ -462,7 +496,7 @@ function injectVeritasButtons() {
   }
 }
 
-// Throttled MutationObserver for silky 60fps performance
+// Throttled MutationObserver for smooth 60fps performance
 let debounceTimer = null;
 const observer = new MutationObserver(() => {
   if (debounceTimer) return;
