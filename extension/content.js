@@ -414,65 +414,56 @@ function isCommentElement(el) {
 
 function getFacebookActionBars() {
   const bars = [];
-  const seen = new Set();
+  const processedPostWrappers = new Set();
 
-  // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
-  const shareEls = document.querySelectorAll(
-    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
-    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
-  );
-
-  shareEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        if (!seen.has(parent)) {
-          seen.add(parent);
-          bars.push(parent);
-        }
-        break;
-      }
-      parent = parent.parentElement;
-    }
-  });
-
-  // Strategy 2: Find Like / Comment buttons (excluding comments which have "Reply" / "উত্তর")
-  const likeEls = document.querySelectorAll(
+  // Primary: Find Like buttons (every post has exactly one, comments excluded)
+  const likeButtons = document.querySelectorAll(
     'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
-    'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
+    'span[aria-label*="Like" i], span[aria-label*="লাইক" i]'
   );
 
-  likeEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      if (parent.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
-        return; // It's a comment row, skip
-      }
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        if (!seen.has(parent)) {
-          seen.add(parent);
-          bars.push(parent);
+  likeButtons.forEach(likeBtn => {
+    if (isCommentElement(likeBtn)) return;
+    
+    // Find the closest horizontal bar that contains the actions
+    let row = likeBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
+    if (!row) {
+      let p = likeBtn.parentElement;
+      while (p && p !== document.body) {
+        if (p.querySelectorAll('div[role="button"], span[role="button"]').length >= 2) {
+          row = p;
+          break;
         }
-        break;
+        p = p.parentElement;
       }
-      parent = parent.parentElement;
     }
+
+    if (!row || isCommentElement(row)) return;
+
+    // Check if this toolbar wrapper was already processed to avoid any double bars
+    let wrapper = row.parentElement?.parentElement || row;
+    if (processedPostWrappers.has(wrapper)) return;
+    processedPostWrappers.add(wrapper);
+
+    bars.push(row);
   });
 
-  // Strategy 3: Every video container's bottom action bar
-  const videos = document.querySelectorAll("video");
-  videos.forEach(vid => {
+  // Secondary: Standalone videos where Like button might not have standard aria-label
+  document.querySelectorAll("video").forEach(vid => {
     if (isCommentElement(vid)) return;
-    let ancestor = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
-    if (ancestor) {
-      const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
-      if (row && !isCommentElement(row) && !seen.has(row)) {
-        seen.add(row);
-        bars.push(row);
+    let container = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement;
+    if (!container) return;
+    if (container.querySelector(".veritas-verify-btn")) return;
+    
+    const shareBtn = container.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i]');
+    if (shareBtn && !isCommentElement(shareBtn)) {
+      let row = shareBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || shareBtn.parentElement;
+      if (row && !row.querySelector(".veritas-verify-btn")) {
+        let wrapper = row.parentElement?.parentElement || row;
+        if (!processedPostWrappers.has(wrapper)) {
+          processedPostWrappers.add(wrapper);
+          bars.push(row);
+        }
       }
     }
   });
@@ -494,24 +485,39 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Remove duplicate buttons in the same bar
+    // 1. Strict Active Deduplication: Remove any extra buttons within 4 levels of any button
     document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
-      const siblings = btn.parentElement?.querySelectorAll(":scope > .veritas-verify-btn");
-      if (siblings && siblings.length > 1) {
-        for (let i = 1; i < siblings.length; i++) siblings[i].remove();
+      let container = btn.parentElement;
+      for (let i = 0; i < 4 && container && container !== document.body; i++) {
+        const btns = container.querySelectorAll(".veritas-verify-btn");
+        if (btns.length > 1) {
+          for (let j = 1; j < btns.length; j++) {
+            btns[j].remove();
+          }
+          break;
+        }
+        container = container.parentElement;
       }
     });
 
-    // Remove buttons accidentally in comments
+    // Remove buttons in comments
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-    // 2. Inject button into every post's action bar
+    // 2. Inject strictly ONE button into every post's action bar
     const actionBars = getFacebookActionBars();
 
     actionBars.forEach(bar => {
-      // If this bar already has our button, skip
-      if (bar.querySelector(".veritas-verify-btn")) return;
-      if (bar.parentElement?.querySelector(":scope > .veritas-verify-btn")) return;
+      // Check if this bar or any parent/ancestor within 4 levels already has our button!
+      let alreadyHas = false;
+      let check = bar;
+      for (let i = 0; i < 4 && check && check !== document.body; i++) {
+        if (check.querySelector(".veritas-verify-btn")) {
+          alreadyHas = true;
+          break;
+        }
+        check = check.parentElement;
+      }
+      if (alreadyHas) return;
 
       const btn = createVerifyButton(bar);
       btn.style.margin = "4px 8px";
