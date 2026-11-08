@@ -16,7 +16,7 @@ function getPlatform() {
   return "x";
 }
 
-function createVerifyButton(postNode) {
+function createVerifyButton(barNode) {
   const btn = document.createElement("button");
   btn.className = "veritas-verify-btn";
   btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
@@ -25,21 +25,22 @@ function createVerifyButton(postNode) {
     e.stopPropagation();
     e.preventDefault();
 
+    const postNode = findPostContainerForButton(btn) || barNode;
+
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
-    const realPost = findRealFacebookPostContainer(btn);
-    if (existingCard && existingCard.parentElement === realPost && existingCard.style.display !== "none") {
+    if (existingCard && existingCard.dataset.currentPostId === (postNode.id || postNode.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
       existingCard.style.display = "none";
       btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
       return;
     }
     
-    const postData = extractPostData(realPost || postNode);
+    const postData = extractPostData(postNode);
     const postKey = ((postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 100)).trim();
 
     // 1. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
-      renderResultCard(realPost || postNode, verificationCache.get(postKey), btn);
+      renderResultCard(postNode, verificationCache.get(postKey), btn);
       btn.innerHTML = `<span>🛡️ Verified</span>`;
       return;
     }
@@ -50,7 +51,7 @@ function createVerifyButton(postNode) {
     setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
-        renderResultCard(realPost || postNode, edgeRes, btn);
+        renderResultCard(postNode, edgeRes, btn);
         verificationCache.set(postKey, edgeRes);
       } catch (err) {
         console.error("Veritas verification error:", err);
@@ -63,23 +64,22 @@ function createVerifyButton(postNode) {
   return btn;
 }
 
-function findRealFacebookPostContainer(el) {
-  if (!el) return null;
-  let curr = el;
-  let best = el;
+function findPostContainerForButton(btn) {
+  if (!btn) return null;
+  let curr = btn;
   while (curr && curr !== document.body) {
     if (curr.getAttribute("role") === "article" && !isCommentElement(curr)) {
       return curr;
     }
-    if (curr.parentElement && (curr.parentElement.getAttribute("role") === "feed" || curr.parentElement.getAttribute("role") === "main")) {
+    if (curr.parentElement && curr.parentElement.getAttribute("role") === "feed") {
       return curr;
     }
     if (curr.querySelector("video, img[src*='fbcdn']") && curr.querySelector("h2, h3, strong, a[role='link'] span")) {
-      best = curr;
+      return curr;
     }
     curr = curr.parentElement;
   }
-  return best;
+  return btn.closest('div[style*="flex"]') || btn.parentElement;
 }
 
 function extractPostData(postNode) {
@@ -243,6 +243,7 @@ function renderResultCard(postNode, data, triggerBtn) {
     card.id = "veritas-unified-card";
   }
   card.remove(); // Relocate to currently clicked post
+  card.dataset.currentPostId = postNode.id || postNode.innerText.slice(0, 30);
 
   card.className = "veritas-card veritas-result-card";
   
@@ -345,22 +346,29 @@ function renderResultCard(postNode, data, triggerBtn) {
   }
 
   // BULLETPROOF INSERTION:
-  // Find the true post container (child of feed or role="article")
-  const realPost = findRealFacebookPostContainer(triggerBtn || postNode);
-  
-  if (realPost) {
-    // Find the direct child of realPost that contains triggerBtn (the footer/action section)
-    let footerSection = triggerBtn;
-    while (footerSection && footerSection.parentElement && footerSection.parentElement !== realPost) {
-      footerSection = footerSection.parentElement;
+  let inserted = false;
+  if (triggerBtn) {
+    const post = findPostContainerForButton(triggerBtn);
+    let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || triggerBtn.parentElement;
+
+    if (post && post !== bar) {
+      let child = bar;
+      while (child && child.parentElement && child.parentElement !== post) {
+        child = child.parentElement;
+      }
+      if (child && child.parentElement === post) {
+        post.insertBefore(card, child);
+        inserted = true;
+      }
     }
 
-    if (footerSection && footerSection.parentElement === realPost) {
-      realPost.insertBefore(card, footerSection);
-    } else {
-      realPost.appendChild(card);
+    if (!inserted && bar && bar.parentElement) {
+      bar.parentElement.insertBefore(card, bar);
+      inserted = true;
     }
-  } else if (postNode) {
+  }
+
+  if (!inserted && postNode) {
     postNode.appendChild(card);
   }
 
@@ -378,14 +386,10 @@ function renderResultCard(postNode, data, triggerBtn) {
     p = p.parentElement;
   }
 
-  // Height fail-safe check: If somehow rendered height is still squeezed, elevate to realPost.appendChild
+  // Smoothly center the full card on screen so user sees all % metrics and summary
   setTimeout(() => {
-    const rect = card.getBoundingClientRect();
-    if (rect.height < 150 && realPost && card.parentElement !== realPost) {
-      realPost.appendChild(card);
-    }
     card.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 80);
+  }, 60);
 }
 
 function isCommentElement(el) {
@@ -410,6 +414,7 @@ function isCommentElement(el) {
 
 function getFacebookActionBars() {
   const bars = [];
+  const seen = new Set();
 
   // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
   const shareEls = document.querySelectorAll(
@@ -423,7 +428,10 @@ function getFacebookActionBars() {
     while (parent && parent !== document.body) {
       const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
       if (count >= 2 && count <= 8) {
-        bars.push(parent);
+        if (!seen.has(parent)) {
+          seen.add(parent);
+          bars.push(parent);
+        }
         break;
       }
       parent = parent.parentElement;
@@ -445,7 +453,10 @@ function getFacebookActionBars() {
       }
       const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
       if (count >= 2 && count <= 8) {
-        bars.push(parent);
+        if (!seen.has(parent)) {
+          seen.add(parent);
+          bars.push(parent);
+        }
         break;
       }
       parent = parent.parentElement;
@@ -459,7 +470,8 @@ function getFacebookActionBars() {
     let ancestor = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
     if (ancestor) {
       const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
-      if (row && !isCommentElement(row)) {
+      if (row && !isCommentElement(row) && !seen.has(row)) {
+        seen.add(row);
         bars.push(row);
       }
     }
@@ -482,39 +494,26 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Clean any duplicate buttons in existing posts
-    const allPosts = document.querySelectorAll('div[role="feed"] > div, div[role="article"], div[data-pagelet*="FeedUnit"]');
-    allPosts.forEach(post => {
-      if (isCommentElement(post)) return;
-      const btns = post.querySelectorAll(".veritas-verify-btn");
-      if (btns.length > 1) {
-        for (let i = 1; i < btns.length; i++) {
-          btns[i].remove();
-        }
+    // 1. Remove duplicate buttons in the same bar
+    document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
+      const siblings = btn.parentElement?.querySelectorAll(":scope > .veritas-verify-btn");
+      if (siblings && siblings.length > 1) {
+        for (let i = 1; i < siblings.length; i++) siblings[i].remove();
       }
     });
 
-    // Clean any buttons that accidentally landed inside comments
+    // Remove buttons accidentally in comments
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-    // 2. Inject strictly ONE button per post
+    // 2. Inject button into every post's action bar
     const actionBars = getFacebookActionBars();
-    const processedPosts = new Set();
 
     actionBars.forEach(bar => {
-      // Find the real post container
-      const realPost = findRealFacebookPostContainer(bar);
-      
-      // If we already processed this post in this run, or if it already has a button, SKIP!
-      if (processedPosts.has(realPost)) return;
-      if (realPost.querySelector(".veritas-verify-btn")) {
-        processedPosts.add(realPost);
-        return;
-      }
+      // If this bar already has our button, skip
+      if (bar.querySelector(".veritas-verify-btn")) return;
+      if (bar.parentElement?.querySelector(":scope > .veritas-verify-btn")) return;
 
-      processedPosts.add(realPost);
-
-      const btn = createVerifyButton(realPost);
+      const btn = createVerifyButton(bar);
       btn.style.margin = "4px 8px";
       btn.style.display = "inline-flex";
       btn.style.alignItems = "center";
