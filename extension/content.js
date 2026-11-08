@@ -26,8 +26,8 @@ function createVerifyButton(postNode) {
     e.preventDefault();
 
     // Toggle card if already open for this exact post
-    const existingCard = postNode.querySelector("#veritas-unified-card");
-    if (existingCard && existingCard.style.display !== "none") {
+    const existingCard = document.getElementById("veritas-unified-card");
+    if (existingCard && existingCard.dataset.currentPost === (postNode.id || postNode.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
       existingCard.style.display = "none";
       btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
       return;
@@ -223,10 +223,11 @@ function renderResultCard(postNode, data, triggerBtn) {
     card.id = "veritas-unified-card";
   }
   card.remove(); // Relocate to currently clicked post
+  card.dataset.currentPost = postNode.id || postNode.innerText.slice(0, 30);
 
   card.className = "veritas-card veritas-result-card";
   
-  // Explicit, rock-solid inline styles ensuring 100% visibility on light/dark modes
+  // Explicit, rock-solid inline styles ensuring 100% full height visibility
   card.style.cssText = `
     display: block !important;
     visibility: visible !important;
@@ -234,7 +235,9 @@ function renderResultCard(postNode, data, triggerBtn) {
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 100% !important;
-    margin: 12px 0 16px 0 !important;
+    min-height: 280px !important;
+    height: auto !important;
+    margin: 14px 0 16px 0 !important;
     padding: 18px 20px !important;
     background: #0f1419 !important;
     border: 1px solid rgba(29, 155, 240, 0.4) !important;
@@ -245,6 +248,7 @@ function renderResultCard(postNode, data, triggerBtn) {
     position: relative !important;
     z-index: 99999 !important;
     clear: both !important;
+    overflow: visible !important;
   `;
 
   const isFake = data.is_fake;
@@ -254,54 +258,54 @@ function renderResultCard(postNode, data, triggerBtn) {
   const badgeText = isFake ? "AI-GENERATED / MANIPULATED" : "SYSTEM VERIFIED";
 
   card.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-      <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #1d9bf0;">
+    <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 14px !important; padding-bottom: 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;">
+      <div style="display: flex !important; align-items: center !important; gap: 8px !important; font-size: 14px !important; font-weight: 800 !important; color: #1d9bf0 !important;">
         <span>⚡</span>
         <span>VERITAS VERIFIED NOTE</span>
       </div>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; background: ${badgeBg}; color: ${statusColor}; border: 1px solid ${badgeBorder};">
+      <div style="display: flex !important; align-items: center !important; gap: 10px !important;">
+        <div style="padding: 4px 10px !important; border-radius: 6px !important; font-size: 11px !important; font-weight: 800 !important; background: ${badgeBg} !important; color: ${statusColor} !important; border: 1px solid ${badgeBorder} !important;">
           ${badgeText}
         </div>
-        <button id="veritas-close-card" style="background: none; border: none; color: #8b98a5; font-size: 16px; cursor: pointer; padding: 2px 6px; line-height: 1;">✕</button>
+        <button id="veritas-close-card" style="background: none !important; border: none !important; color: #8b98a5 !important; font-size: 16px !important; cursor: pointer !important; padding: 2px 6px !important; line-height: 1 !important;">✕</button>
       </div>
     </div>
 
     <!-- 3 High Impact Metric Tiles -->
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;">
+    <div style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 10px !important; margin-bottom: 14px !important;">
       <!-- Original Authenticity -->
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">ORIGINAL / AUTHENTIC</div>
-        <div style="font-size: 20px; font-weight: 800; color: ${isFake ? '#8b98a5' : '#00ba7c'};">${data.authentic_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">ORIGINAL / AUTHENTIC</div>
+        <div style="font-size: 22px !important; font-weight: 800 !important; color: ${isFake ? '#8b98a5' : '#00ba7c'} !important;">${data.authentic_score}%</div>
       </div>
       <!-- AI / Deepfake Risk -->
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">AI / DEEPFAKE RISK</div>
-        <div style="font-size: 20px; font-weight: 800; color: ${isFake ? '#f4212e' : '#00ba7c'};">${data.deepfake_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">AI / DEEPFAKE RISK</div>
+        <div style="font-size: 22px !important; font-weight: 800 !important; color: ${isFake ? '#f4212e' : '#00ba7c'} !important;">${data.deepfake_score}%</div>
       </div>
       <!-- Bot / Synthetic Probability -->
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); text-align: center;">
-        <div style="font-size: 10px; color: #8b98a5; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">BOT / SYNTHETIC</div>
-        <div style="font-size: 20px; font-weight: 800; color: #1d9bf0;">${data.bot_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">BOT / SYNTHETIC</div>
+        <div style="font-size: 22px !important; font-weight: 800 !important; color: #1d9bf0 !important;">${data.bot_score}%</div>
       </div>
     </div>
 
     <!-- Claim & Status Summary -->
-    <div style="background: rgba(255, 255, 255, 0.04); padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; color: #e7e9ea; margin-bottom: 14px; border-left: 3px solid ${statusColor};">
-      <div style="font-weight: 700; margin-bottom: 3px; color: ${statusColor};">${data.fact_check_status}</div>
+    <div style="background: rgba(255, 255, 255, 0.04) !important; padding: 12px 14px !important; border-radius: 10px !important; font-size: 13px !important; line-height: 1.5 !important; color: #e7e9ea !important; margin-bottom: 14px !important; border-left: 3px solid ${statusColor} !important;">
+      <div style="font-weight: 700 !important; margin-bottom: 3px !important; color: ${statusColor} !important;">${data.fact_check_status}</div>
       ${data.summary}
     </div>
 
     <!-- Official Founder Verification Box -->
-    <div style="background: rgba(29, 155, 240, 0.1); border: 1px solid rgba(29, 155, 240, 0.35); border-radius: 10px; padding: 10px 14px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-        <span style="background: #1d9bf0; color: #fff; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">FOUNDER & CREATOR</span>
-        <span style="font-size: 11px; color: #00ba7c; font-weight: 700;">● ENGINE VERIFIED</span>
+    <div style="background: rgba(29, 155, 240, 0.1) !important; border: 1px solid rgba(29, 155, 240, 0.35) !important; border-radius: 10px !important; padding: 10px 14px !important;">
+      <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 4px !important;">
+        <span style="background: #1d9bf0 !important; color: #fff !important; font-size: 9px !important; font-weight: 800 !important; padding: 2px 6px !important; border-radius: 4px !important; text-transform: uppercase !important;">FOUNDER & CREATOR</span>
+        <span style="font-size: 11px !important; color: #00ba7c !important; font-weight: 700 !important;">● ENGINE VERIFIED</span>
       </div>
-      <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-bottom: 2px;">
+      <div style="font-size: 14px !important; font-weight: 800 !important; color: #ffffff !important; margin-bottom: 2px !important;">
         Md. Mahmudul Hoque ⚡
       </div>
-      <div style="font-size: 11px; color: #8b98a5; display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px;">
+      <div style="font-size: 11px !important; color: #8b98a5 !important; display: flex !important; flex-wrap: wrap !important; gap: 12px !important; margin-top: 4px !important;">
         <span>✉️ <b>mahmudulhoque934@gmail.com</b></span>
         <span>⚡ <b>@hmahmudulm</b></span>
         <span>📍 <b>Panchagarh, Bangladesh 🌐</b></span>
@@ -321,25 +325,41 @@ function renderResultCard(postNode, data, triggerBtn) {
     });
   }
 
-  // Insert location: Directly above the post's action bar
-  if (triggerBtn) {
-    let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"], div[role="group"]') || triggerBtn.parentElement;
-    if (bar && bar.parentElement) {
-      bar.parentElement.insertBefore(card, bar);
-    } else {
-      postNode.appendChild(card);
+  // INSERTION LOGIC:
+  // Place card directly inside postNode, right above the entire footer section (NOT trapped inside a 44px button wrapper!)
+  let inserted = false;
+  if (triggerBtn && postNode) {
+    let topSection = triggerBtn;
+    while (topSection && topSection.parentElement && topSection.parentElement !== postNode) {
+      topSection = topSection.parentElement;
     }
-  } else if (postNode) {
-    postNode.appendChild(card);
+    if (topSection && topSection.parentElement === postNode) {
+      postNode.insertBefore(card, topSection);
+      inserted = true;
+    }
   }
 
-  // Unclip all ancestor containers so Facebook never cuts off the bottom of the card!
+  if (!inserted) {
+    if (triggerBtn && triggerBtn.parentElement) {
+      let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"], div[role="group"]') || triggerBtn.parentElement;
+      if (bar && bar.parentElement) {
+        bar.parentElement.insertBefore(card, bar);
+      } else {
+        postNode.appendChild(card);
+      }
+    } else if (postNode) {
+      postNode.appendChild(card);
+    }
+  }
+
+  // Unclip all ancestor containers so Facebook never cuts off the height!
   let p = card.parentElement;
   while (p && p !== document.body) {
     if (p.style) {
       p.style.setProperty("overflow", "visible", "important");
       p.style.setProperty("overflow-y", "visible", "important");
       p.style.setProperty("max-height", "none", "important");
+      p.style.setProperty("height", "auto", "important");
     }
     p = p.parentElement;
   }
@@ -347,7 +367,7 @@ function renderResultCard(postNode, data, triggerBtn) {
   // Smoothly center the full card on screen so user sees all % metrics and summary
   setTimeout(() => {
     card.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 50);
+  }, 60);
 }
 
 function isCommentElement(el) {
