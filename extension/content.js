@@ -337,9 +337,9 @@ function renderResultCard(postNode, data, triggerBtn) {
   let p = card.parentElement;
   while (p && p !== document.body) {
     if (p.style) {
-      p.style.overflow = "visible";
-      p.style.overflowY = "visible";
-      p.style.maxHeight = "none";
+      p.style.setProperty("overflow", "visible", "important");
+      p.style.setProperty("overflow-y", "visible", "important");
+      p.style.setProperty("max-height", "none", "important");
     }
     p = p.parentElement;
   }
@@ -370,42 +370,64 @@ function isCommentElement(el) {
   return false;
 }
 
-// Find the single best action bar in a post
-function findPostActionBar(post) {
-  // Strategy 1: Find Share button (Only main posts have share buttons, comments never do!)
-  const shareBtn = post.querySelector(
+function getFacebookActionBars() {
+  const bars = [];
+
+  // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
+  const shareEls = document.querySelectorAll(
     'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
     'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
   );
-  if (shareBtn && !isCommentElement(shareBtn)) {
-    let row = shareBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
-    if (row && !isCommentElement(row)) return row;
-  }
 
-  // Strategy 2: Find Like / Comment buttons (excluding reply buttons)
-  const likeBtn = post.querySelector(
+  shareEls.forEach(el => {
+    if (isCommentElement(el)) return;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
+      if (count >= 2 && count <= 8) {
+        bars.push(parent);
+        break;
+      }
+      parent = parent.parentElement;
+    }
+  });
+
+  // Strategy 2: Find Like / Comment buttons (excluding comments which have "Reply" / "উত্তর")
+  const likeEls = document.querySelectorAll(
     'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
     'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
   );
-  if (likeBtn && !isCommentElement(likeBtn)) {
-    let row = likeBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
-    if (row && !isCommentElement(row) && !row.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
-      return row;
-    }
-  }
 
-  // Strategy 3: Scan candidate rows from bottom up looking for 2-4 SVGs (Like, Comment, Share)
-  const candidateRows = post.querySelectorAll('div[style*="flex"]');
-  for (let i = candidateRows.length - 1; i >= 0; i--) {
-    const r = candidateRows[i];
-    if (isCommentElement(r)) continue;
-    const svgs = r.querySelectorAll("svg");
-    if (svgs.length >= 2 && svgs.length <= 5) {
-      return r;
+  likeEls.forEach(el => {
+    if (isCommentElement(el)) return;
+    let parent = el.parentElement;
+    while (parent && parent !== document.body) {
+      if (parent.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
+        return; // It's a comment row, skip
+      }
+      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
+      if (count >= 2 && count <= 8) {
+        bars.push(parent);
+        break;
+      }
+      parent = parent.parentElement;
     }
-  }
+  });
 
-  return null;
+  // Strategy 3: Every video container's bottom action bar
+  const videos = document.querySelectorAll("video");
+  videos.forEach(vid => {
+    if (isCommentElement(vid)) return;
+    let ancestor = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
+    if (ancestor) {
+      const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
+      if (row && !isCommentElement(row)) {
+        bars.push(row);
+      }
+    }
+  });
+
+  return bars;
 }
 
 function injectVeritasButtons() {
@@ -437,16 +459,24 @@ function injectVeritasButtons() {
     // Clean any buttons that accidentally landed inside comments
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-    // 2. Strict 1-button injection per post container
-    allPosts.forEach(post => {
-      if (isCommentElement(post)) return;
-      // If this post already has a button, NEVER inject another one!
-      if (post.querySelector(".veritas-verify-btn")) return;
+    // 2. Inject strictly ONE button per post
+    const actionBars = getFacebookActionBars();
+    const processedPosts = new Set();
 
-      const bar = findPostActionBar(post);
-      if (!bar || bar.querySelector(".veritas-verify-btn")) return;
+    actionBars.forEach(bar => {
+      // Find the post container for this action bar
+      const postNode = bar.closest('div[role="article"], div[role="feed"] > div, div[data-pagelet*="FeedUnit"]') || bar.parentElement?.parentElement?.parentElement || bar;
+      
+      // If we already processed this post in this run, or if it already has a button, SKIP!
+      if (processedPosts.has(postNode)) return;
+      if (postNode.querySelector(".veritas-verify-btn")) {
+        processedPosts.add(postNode);
+        return;
+      }
 
-      const btn = createVerifyButton(post);
+      processedPosts.add(postNode);
+
+      const btn = createVerifyButton(postNode);
       btn.style.margin = "4px 8px";
       btn.style.display = "inline-flex";
       btn.style.alignItems = "center";
@@ -454,22 +484,6 @@ function injectVeritasButtons() {
       btn.style.cursor = "pointer";
 
       bar.appendChild(btn);
-    });
-
-    // 3. Fallback for standalone video posts / Reels
-    const videos = document.querySelectorAll("video");
-    videos.forEach(vid => {
-      if (isCommentElement(vid)) return;
-      const post = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
-      if (!post || post.querySelector(".veritas-verify-btn")) return;
-
-      const bar = findPostActionBar(post) || vid.parentElement?.nextElementSibling;
-      if (bar && !bar.querySelector(".veritas-verify-btn")) {
-        const btn = createVerifyButton(post);
-        btn.style.margin = "4px 8px";
-        btn.style.display = "inline-flex";
-        bar.appendChild(btn);
-      }
     });
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
@@ -496,7 +510,7 @@ function injectVeritasButtons() {
   }
 }
 
-// Throttled MutationObserver for smooth 60fps performance
+// Throttled MutationObserver for silky 60fps performance
 let debounceTimer = null;
 const observer = new MutationObserver(() => {
   if (debounceTimer) return;
