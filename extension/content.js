@@ -16,47 +16,49 @@ function getPlatform() {
   return "x";
 }
 
-function createVerifyButton(barNode) {
+function createVerifyButton(postNode) {
   const btn = document.createElement("button");
   btn.className = "veritas-verify-btn";
-  btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
+  btn.setAttribute("title", "Veritas Universal AI Verification");
+  btn.setAttribute("aria-label", "Veritas Verify");
+  btn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
   
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     e.preventDefault();
 
-    const postNode = findPostContainerForButton(btn) || barNode;
+    const post = findPostContainerForButton(btn) || postNode;
 
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
-    if (existingCard && existingCard.dataset.currentPostId === (postNode.id || postNode.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
+    if (existingCard && existingCard.dataset.currentPostId === (post.id || post.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
       existingCard.style.display = "none";
-      btn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
+      btn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
       return;
     }
     
-    const postData = extractPostData(postNode);
+    const postData = extractPostData(post);
     const postKey = ((postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 100)).trim();
 
     // 1. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
-      renderResultCard(postNode, verificationCache.get(postKey), btn);
-      btn.innerHTML = `<span>🛡️ Verified</span>`;
+      renderResultCard(post, verificationCache.get(postKey), btn);
+      btn.innerHTML = `<span style="font-size: 16px; line-height: 1;" title="Verified">🛡️</span>`;
       return;
     }
 
     // 2. Single-Pass High Confidence Verification
-    btn.innerHTML = `<span class="veritas-spinner"></span> <span>Verifying...</span>`;
+    btn.innerHTML = `<span class="veritas-spinner"></span>`;
     
     setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
-        renderResultCard(postNode, edgeRes, btn);
+        renderResultCard(post, edgeRes, btn);
         verificationCache.set(postKey, edgeRes);
       } catch (err) {
         console.error("Veritas verification error:", err);
       } finally {
-        btn.innerHTML = `<span>🛡️ Verified</span>`;
+        btn.innerHTML = `<span style="font-size: 16px; line-height: 1;" title="Verified">🛡️</span>`;
       }
     }, 350);
   });
@@ -340,7 +342,7 @@ function renderResultCard(postNode, data, triggerBtn) {
       e.stopPropagation();
       card.remove();
       if (triggerBtn) {
-        triggerBtn.innerHTML = `<span>🛡️ Veritas Verify</span>`;
+        triggerBtn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
       }
     });
   }
@@ -412,63 +414,82 @@ function isCommentElement(el) {
   return false;
 }
 
-function getFacebookActionBars() {
-  const bars = [];
-  const processedPostWrappers = new Set();
+function injectFacebookButtons() {
+  // 1. Strict Deduplication: Keep only 1 button per post container
+  const existingBtns = document.querySelectorAll(".veritas-verify-btn");
+  const processedPosts = new Set();
+  
+  existingBtns.forEach(btn => {
+    const post = findPostContainerForButton(btn);
+    if (!post || processedPosts.has(post)) {
+      btn.remove();
+    } else {
+      processedPosts.add(post);
+    }
+  });
 
-  // Primary: Find Like buttons (every post has exactly one, comments excluded)
-  const likeButtons = document.querySelectorAll(
-    'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
-    'span[aria-label*="Like" i], span[aria-label*="লাইক" i]'
-  );
+  // Remove buttons accidentally inside comments
+  document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-  likeButtons.forEach(likeBtn => {
-    if (isCommentElement(likeBtn)) return;
-    
-    // Find the closest horizontal bar that contains the actions
-    let row = likeBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
-    if (!row) {
-      let p = likeBtn.parentElement;
-      while (p && p !== document.body) {
-        if (p.querySelectorAll('div[role="button"], span[role="button"]').length >= 2) {
-          row = p;
-          break;
-        }
-        p = p.parentElement;
+  // 2. Query all post containers
+  const allPosts = document.querySelectorAll('div[role="feed"] > div, div[role="article"], div[data-pagelet*="FeedUnit"]');
+
+  allPosts.forEach(post => {
+    if (isCommentElement(post)) return;
+    if (post.querySelector(".veritas-verify-btn")) return; // strictly 1 button per post
+
+    // Find the Share button of this post to position right after it
+    const shareBtn = post.querySelector(
+      'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
+      'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
+    );
+
+    let targetEl = null;
+    if (shareBtn && !isCommentElement(shareBtn)) {
+      targetEl = shareBtn.closest('div[role="button"], div[tabindex="0"]') || shareBtn.parentElement;
+    }
+
+    // Fallback: If no Share button, look for Comment button
+    if (!targetEl) {
+      const commentBtn = post.querySelector(
+        'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
+      );
+      if (commentBtn && !isCommentElement(commentBtn)) {
+        targetEl = commentBtn.closest('div[role="button"], div[tabindex="0"]') || commentBtn.parentElement;
       }
     }
 
-    if (!row || isCommentElement(row)) return;
+    // Fallback: If no Comment button, look for Like button
+    if (!targetEl) {
+      const likeBtn = post.querySelector(
+        'div[aria-label*="Like" i], div[aria-label*="লাইক" i]'
+      );
+      if (likeBtn && !isCommentElement(likeBtn)) {
+        targetEl = likeBtn.closest('div[role="button"], div[tabindex="0"]') || likeBtn.parentElement;
+      }
+    }
 
-    // Check if this toolbar wrapper was already processed to avoid any double bars
-    let wrapper = row.parentElement?.parentElement || row;
-    if (processedPostWrappers.has(wrapper)) return;
-    processedPostWrappers.add(wrapper);
+    if (!targetEl) return;
 
-    bars.push(row);
+    // Create the icon-only button
+    const btn = createVerifyButton(post);
+    
+    // Insert IMMEDIATELY to the right of the Share button!
+    targetEl.insertAdjacentElement("afterend", btn);
   });
 
-  // Secondary: Standalone videos where Like button might not have standard aria-label
+  // 3. Fallback for standalone video posts / Reels
   document.querySelectorAll("video").forEach(vid => {
     if (isCommentElement(vid)) return;
-    let container = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement;
-    if (!container) return;
-    if (container.querySelector(".veritas-verify-btn")) return;
-    
-    const shareBtn = container.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i]');
-    if (shareBtn && !isCommentElement(shareBtn)) {
-      let row = shareBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || shareBtn.parentElement;
-      if (row && !row.querySelector(".veritas-verify-btn")) {
-        let wrapper = row.parentElement?.parentElement || row;
-        if (!processedPostWrappers.has(wrapper)) {
-          processedPostWrappers.add(wrapper);
-          bars.push(row);
-        }
-      }
+    const post = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
+    if (!post || post.querySelector(".veritas-verify-btn")) return;
+
+    const shareBtn = post.querySelector('div[aria-label*="Share" i], div[aria-label*="শেয়ার" i]');
+    const targetEl = shareBtn ? (shareBtn.closest('div[role="button"], div[tabindex="0"]') || shareBtn.parentElement) : null;
+    if (targetEl) {
+      targetEl.insertAdjacentElement("afterend", createVerifyButton(post));
     }
   });
-
-  return bars;
 }
 
 function injectVeritasButtons() {
@@ -485,49 +506,7 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Strict Active Deduplication: Remove any extra buttons within 4 levels of any button
-    document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
-      let container = btn.parentElement;
-      for (let i = 0; i < 4 && container && container !== document.body; i++) {
-        const btns = container.querySelectorAll(".veritas-verify-btn");
-        if (btns.length > 1) {
-          for (let j = 1; j < btns.length; j++) {
-            btns[j].remove();
-          }
-          break;
-        }
-        container = container.parentElement;
-      }
-    });
-
-    // Remove buttons in comments
-    document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
-
-    // 2. Inject strictly ONE button into every post's action bar
-    const actionBars = getFacebookActionBars();
-
-    actionBars.forEach(bar => {
-      // Check if this bar or any parent/ancestor within 4 levels already has our button!
-      let alreadyHas = false;
-      let check = bar;
-      for (let i = 0; i < 4 && check && check !== document.body; i++) {
-        if (check.querySelector(".veritas-verify-btn")) {
-          alreadyHas = true;
-          break;
-        }
-        check = check.parentElement;
-      }
-      if (alreadyHas) return;
-
-      const btn = createVerifyButton(bar);
-      btn.style.margin = "4px 8px";
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.verticalAlign = "middle";
-      btn.style.cursor = "pointer";
-
-      bar.appendChild(btn);
-    });
+    injectFacebookButtons();
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
     posts.forEach(post => {
