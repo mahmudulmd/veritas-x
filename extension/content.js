@@ -83,25 +83,32 @@ function findPostContainerForButton(btn) {
   }
 
   // On Facebook:
-  let curr = btn;
-  let bestPost = null;
+  // 1. Direct role="article"
+  const article = btn.closest('div[role="article"]');
+  if (article && !isCommentElement(article)) return article;
 
-  while (curr && curr !== document.body && curr !== document.documentElement) {
-    if (curr.getAttribute("role") === "article" && !isCommentElement(curr)) {
+  // 2. Feed unit by pagelet
+  const unit = btn.closest('div[data-pagelet*="FeedUnit"]');
+  if (unit) return unit;
+
+  // 3. Climb carefully to the immediate post boundary (STOP immediately at the first post wrapper)
+  let curr = btn.parentElement;
+  while (curr && curr !== document.body) {
+    // If the parent is a feed, this curr is the exact post!
+    if (curr.parentElement && (curr.parentElement.getAttribute("role") === "feed" || curr.parentElement.getAttribute("role") === "main")) {
       return curr;
     }
-
-    const hasMedia = !!curr.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"]');
-    const hasHeader = !!curr.querySelector('h2, h3, h4, strong, div[dir="auto"], [data-ad-preview="message"]');
-
-    if (hasMedia && hasHeader) {
-      bestPost = curr;
+    // If this element contains both a post header and media, stop here!
+    if (
+      curr.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"]') &&
+      curr.querySelector('h2, h3, h4, strong, div[dir="auto"], [data-ad-preview="message"]')
+    ) {
+      return curr;
     }
-
     curr = curr.parentElement;
   }
 
-  return bestPost || btn.closest('div[role="article"]') || btn.parentElement;
+  return btn.parentElement;
 }
 
 function extractPostData(postNode) {
@@ -256,8 +263,7 @@ function simulateVerification(data) {
     "ai clone", "voice clone", "synthetic media", "cgi", "digital double", "unreal engine",
     "wwe", "doritos", "oval office", "parody", "satire",
     // Deepfake & Synthetic Media (Bengali)
-    "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "ক্লোন", "কৃত্রিম বুদ্ধিমত্তা",
-    "এআই ভিডিও", "মডেলিংয়ে লিডার খাইরুল", "লিডার খাইরুল", "nasir alam"
+    "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "কৃত্রিম বুদ্ধিমত্তা", "এআই ভিডিও"
   ];
 
   const matchedAi = aiKeywords.find(kw => combined.includes(kw));
