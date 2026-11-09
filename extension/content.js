@@ -266,14 +266,21 @@ function simulateVerification(data) {
     "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "কৃত্রিম বুদ্ধিমত্তা", "এআই ভিডিও"
   ];
 
-  const matchedAi = aiKeywords.find(kw => combined.includes(kw));
+  // Accurate boundary-aware keyword matching (prevents false matches like "pika" inside "DeePIKA")
+  function hasWord(text, word) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(^|[^a-zA-Z0-9\u0980-\u09FF])${escaped}([^a-zA-Z0-9\u0980-\u09FF]|$)`, 'i');
+    return regex.test(text);
+  }
+
+  const matchedAi = aiKeywords.find(kw => hasWord(combined, kw));
 
   // LAYER 4: Fraudulent Scams & Deceptive Promotion Schemes
   const scamKeywords = [
     "ঘরে বসে আয়", "ঘরে বসে আয়", "টেলিগ্রাম গ্রুপ", "বিকাশ ফ্রি", "নগদ অফার", "ফ্রি টাকা",
     "লটারি জিতেছেন", "giveaway claim", "free crypto", "send eth", "investment double"
   ];
-  const matchedScam = scamKeywords.find(kw => combined.includes(kw));
+  const matchedScam = scamKeywords.find(kw => hasWord(combined, kw));
 
   // LAYER 5: Unverified Government Circulars & Doctored Notices
   const fakeNoticeKeywords = [
