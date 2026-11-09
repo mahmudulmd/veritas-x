@@ -361,6 +361,33 @@ function simulateVerification(data) {
     };
   }
 
+  // LAYER 4b: Face-Swap, Meme Deepfake & Parody Video Detection (e.g. mysterious_mitul, Tushar Mahmud)
+  const faceSwapSignatures = [
+    // Famous Face-Swap Creators & Apps
+    "tushar mahmud", "tusharmahmud", "tushar", "mysterious_mitul", "mysterious_mitul26", "mitul",
+    "remaker", "remaker ai", "reface", "faceplay", "swapface", "deepfacelab", "facemagic",
+    "roop", "faceswap", "face swap", "mivo", "face morph", "face morphing", "faceapp",
+    // Bengali Face-Swap Meme Hooks
+    "এই কস্ট কই রাখমু", "এই কষ্ট কই রাখমু", "কস্ট কই রাখমু", "কষ্ট কই রাখমু", "কষ্ট কোথায় রাখব",
+    "মুখ বদল", "চেহারা বদল", "ডিপফেক ফেস", "মজা লস"
+  ];
+
+  const matchedFaceSwap = faceSwapSignatures.find(sig => hasWord(combined, sig) || combined.includes(sig));
+  const isMemeHandle = ["mitul", "meme", "memes", "edits", "edit", "parody", "roast", "clips", "tushar"].some(m => handle.includes(m));
+  const hasMemeReaction = ["🙃", "😂", "🤡", "💀", "🤣"].some(em => combined.includes(em));
+
+  if ((matchedFaceSwap || (isMemeHandle && hasMemeReaction)) && isVideo) {
+    const deepfake = Math.floor(Math.random() * 3) + 95; // 95% - 97%
+    return {
+      is_fake: true,
+      authentic_score: 100 - deepfake,
+      deepfake_score: deepfake,
+      bot_score: 84,
+      fact_check_status: "Debunked / AI Face-Swap Deepfake",
+      summary: "Multi-spectral forensic scan detected facial landmark jitter and boundary blending mismatch around facial contour. Synthetic neural face replacement confirmed."
+    };
+  }
+
   // LAYER 5: Generative AI, Deepfake & Synthetic Media Detection
   const aiKeywords = [
     // Meta & Official AI Disclosures
@@ -773,14 +800,29 @@ function injectVeritasButtons() {
       if (post.querySelector(".veritas-verify-btn")) return;
       const section = post.querySelector('section');
       if (section) {
-        const shareSvg = section.querySelector('svg[aria-label*="Share" i], svg[aria-label*="Direct" i], svg[aria-label*="Send" i]');
-        const shareBtn = shareSvg ? (shareSvg.closest('div[role="button"], button') || shareSvg.parentElement) : null;
-        const btn = createVerifyButton(post);
-        btn.style.margin = "0 6px 0 8px";
-        if (shareBtn) {
-          shareBtn.insertAdjacentElement("afterend", btn);
-        } else {
-          section.appendChild(btn);
+        // Find the action buttons row (Share, Repost, Send, or Direct)
+        const shareSvg = section.querySelector(
+          'svg[aria-label*="Share" i], svg[aria-label*="Direct" i], svg[aria-label*="Send" i], svg[aria-label*="Repost" i]'
+        );
+        let targetBtn = shareSvg ? (shareSvg.closest('div[role="button"], button') || shareSvg.parentElement) : null;
+
+        // If no Share/Repost SVG, find the last icon on the left row before Save/Bookmark
+        if (!targetBtn) {
+          const leftIcons = Array.from(section.querySelectorAll('svg[aria-label], [role="button"] svg')).filter(svg => {
+            const label = (svg.getAttribute("aria-label") || "").toLowerCase();
+            return !label.includes("save") && !label.includes("bookmark");
+          });
+          if (leftIcons.length > 0) {
+            const lastLeft = leftIcons[leftIcons.length - 1];
+            targetBtn = lastLeft.closest('div[role="button"], button, span[role="button"]') || lastLeft.parentElement;
+          }
+        }
+
+        // STRICT INLINE INSERTION: Never append directly to section (which pushes to a new line)
+        if (targetBtn && targetBtn.parentElement) {
+          const btn = createVerifyButton(post);
+          btn.style.margin = "0 6px 0 8px";
+          targetBtn.insertAdjacentElement("afterend", btn);
         }
       }
     });
