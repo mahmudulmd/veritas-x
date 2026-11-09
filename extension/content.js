@@ -417,81 +417,86 @@ function isCommentElement(el) {
 }
 
 function injectFacebookButtons() {
-  // 1. Remove any stray buttons in comments or duplicate siblings
+  // 1. Remove all stray buttons in comments
   document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(b => b.remove());
+
+  const processedRows = new Set();
+
+  // Method A: Direct Share button identification
+  const shareElements = document.querySelectorAll(
+    '[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i]'
+  );
+
+  shareElements.forEach(el => {
+    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
+
+    const shareBtn = el.closest('div[role="button"], span[role="button"], button') || el;
+    if (!shareBtn || !shareBtn.parentElement) return;
+
+    // Target the button wrapper if one exists in the row
+    let target = shareBtn;
+    if (
+      shareBtn.parentElement &&
+      shareBtn.parentElement.parentElement &&
+      shareBtn.parentElement.parentElement.children.length >= 2 &&
+      shareBtn.parentElement.children.length === 1 &&
+      !shareBtn.parentElement.classList.contains("veritas-verify-btn")
+    ) {
+      target = shareBtn.parentElement;
+    }
+
+    const row = target.parentElement;
+    if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
+    processedRows.add(row);
+
+    const post = findPostContainerForButton(target) || target;
+    const veritasBtn = createVerifyButton(post);
+
+    // INSERT DIRECTLY AFTER THE SHARE BUTTON!
+    target.insertAdjacentElement("afterend", veritasBtn);
+  });
+
+  // Method B: Find Comment button -> Share button is the sibling immediately after it!
+  const commentElements = document.querySelectorAll(
+    '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], [aria-label*="Leave a comment" i]'
+  );
+
+  commentElements.forEach(el => {
+    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
+
+    const commentBtn = el.closest('div[role="button"], span[role="button"], button') || el;
+    if (!commentBtn || !commentBtn.parentElement) return;
+
+    let commentTarget = commentBtn;
+    if (
+      commentBtn.parentElement &&
+      commentBtn.parentElement.parentElement &&
+      commentBtn.parentElement.parentElement.children.length >= 2 &&
+      commentBtn.parentElement.children.length === 1
+    ) {
+      commentTarget = commentBtn.parentElement;
+    }
+
+    const row = commentTarget.parentElement;
+    if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
+
+    // The Share button is the sibling directly after the Comment button
+    const shareSibling = commentTarget.nextElementSibling;
+    if (shareSibling && !shareSibling.classList.contains("veritas-verify-btn")) {
+      // Ensure it's not a reaction emoji
+      if (!shareSibling.querySelector('img[src*="emoji"], span[style*="background-image"]')) {
+        processedRows.add(row);
+        const post = findPostContainerForButton(shareSibling) || shareSibling;
+        const veritasBtn = createVerifyButton(post);
+        shareSibling.insertAdjacentElement("afterend", veritasBtn);
+      }
+    }
+  });
+
+  // 3. Cleanup: If any row got duplicate buttons side by side, remove the duplicate
   document.querySelectorAll('.veritas-verify-btn').forEach(btn => {
     if (btn.nextElementSibling?.classList.contains("veritas-verify-btn")) {
       btn.nextElementSibling.remove();
-    }
-  });
-
-  // 2. Discover all Facebook post action bars (just like Twitter's action bar)
-  const actionTriggers = document.querySelectorAll(
-    '[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i], ' +
-    '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], ' +
-    '[aria-label*="Like" i], [aria-label*="React" i], [aria-label*="লাইক" i]'
-  );
-
-  const seenActionBars = new Set();
-
-  actionTriggers.forEach(el => {
-    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
-
-    const btnEl = el.closest('div[role="button"], span[role="button"], div[tabindex="0"], button') || el;
-    if (!btnEl) return;
-
-    // Climb up to find the action toolbar container that holds the post's action buttons
-    let bar = btnEl.parentElement;
-    let depth = 0;
-    while (bar && bar !== document.body && depth < 5) {
-      const svgs = bar.querySelectorAll('svg');
-      if (svgs.length >= 2) {
-        break;
-      }
-      bar = bar.parentElement;
-      depth++;
-    }
-
-    if (!bar || bar === document.body || seenActionBars.has(bar)) return;
-    seenActionBars.add(bar);
-
-    // If this action bar already has our Veritas button, skip!
-    if (bar.querySelector('.veritas-verify-btn')) return;
-
-    // Check direct child elements of the action bar
-    const children = Array.from(bar.children).filter(c => !isCommentElement(c));
-    if (children.length === 0) return;
-
-    // Check if the last child is the reaction emoji summary (💙😆 19.3K)
-    const lastChild = children[children.length - 1];
-    const isReactionSummary = !!(
-      lastChild.querySelector('img[src*="emoji"], span[style*="background-image"], img[alt="Like"], img[alt="Love"], img[alt="Haha"]') ||
-      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("reacted") ||
-      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("reaction") ||
-      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("প্রতিক্রিয়া")
-    );
-
-    const post = findPostContainerForButton(bar) || bar;
-    const veritasBtn = createVerifyButton(post);
-
-    if (isReactionSummary && children.length > 1) {
-      // Place right before reaction summary -> immediately to the right of the Share button!
-      lastChild.insertAdjacentElement("beforebegin", veritasBtn);
-    } else {
-      // Append at the end of the action bar (just like Twitter!)
-      bar.appendChild(veritasBtn);
-    }
-  });
-
-  // 3. Fallback for role="toolbar" containers
-  document.querySelectorAll('div[role="toolbar"]').forEach(bar => {
-    if (isCommentElement(bar) || bar.querySelector('.veritas-verify-btn') || seenActionBars.has(bar)) return;
-    const svgs = bar.querySelectorAll('svg');
-    if (svgs.length >= 2) {
-      seenActionBars.add(bar);
-      const post = findPostContainerForButton(bar) || bar;
-      const veritasBtn = createVerifyButton(post);
-      bar.appendChild(veritasBtn);
     }
   });
 }
