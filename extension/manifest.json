@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Veritas Universal — Multimodal AI Verification Engine",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Cross-Platform Real-Time Multimodal AI Verification & Deepfake Detection for X, Instagram, Facebook & YouTube. Founder: Md. Mahmudul Hoque.",
   "author": "Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>",
   "permissions": [

@@ -61,10 +61,11 @@
   box-sizing: border-box !important;
   width: 100% !important;
   max-width: 460px !important;
-  height: auto !important;
-  min-height: auto !important;
-  max-height: fit-content !important;
+  height: fit-content !important;
+  min-height: 0 !important;
+  max-height: 85vh !important;
   align-self: flex-start !important;
+  flex: 0 0 auto !important;
   flex-grow: 0 !important;
   flex-shrink: 0 !important;
   margin: 8px auto !important;
