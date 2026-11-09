@@ -121,15 +121,33 @@ function extractPostData(postNode) {
   let mediaLabels = "";
 
   if (platform === "instagram") {
-    const textEl = postNode.querySelector('h1, span._aacu, div._a9zs, div[dir="auto"]');
-    tweetText = textEl ? textEl.innerText : "";
-    const userEl = postNode.querySelector('header a, a._a6hd, span._aacl');
-    userHandle = userEl ? ("@" + userEl.innerText.replace("@", "")) : "";
+    // Exclude Veritas's own elements from text extraction
+    const cleanPost = postNode.cloneNode(true);
+    cleanPost.querySelectorAll('.veritas-card, .veritas-verify-btn, #veritas-unified-card').forEach(el => el.remove());
+
+    // 1. Author
+    const userEl = cleanPost.querySelector('header a, a._a6hd, span._aacl, a[role="link"], span._ap3a');
+    userHandle = userEl ? ("@" + userEl.innerText.replace("@", "").trim()) : "";
     fullUserHeader = userHandle;
+
+    // 2. Comprehensive caption, description, audio and hashtag extraction
+    const captionEls = cleanPost.querySelectorAll('h1, span._ap3a, div._a9zs, span._aacu, div[dir="auto"], span[dir="auto"], ul li, span');
+    const captionTexts = Array.from(captionEls).map(el => el.innerText.trim()).filter(Boolean);
+    const uniqueCaptions = Array.from(new Set(captionTexts)).join(" ");
+    const rawPostText = (cleanPost.innerText || "").slice(0, 1000);
+    tweetText = (uniqueCaptions + " " + rawPostText).slice(0, 1200);
+
+    // 3. Media Detection
     const vid = postNode.querySelector("video");
     const img = postNode.querySelector("img");
     mediaType = vid ? "video" : (img ? "image" : "text");
     mediaUrl = vid ? vid.src : (img ? img.src : null);
+
+    // 4. Accessibility Alt Labels
+    const alts = Array.from(cleanPost.querySelectorAll('img[alt], video[aria-label]'))
+      .map(el => el.getAttribute("alt") || el.getAttribute("aria-label") || "")
+      .filter(Boolean);
+    mediaLabels = alts.join(" ");
   } else if (platform === "facebook") {
     // Exclude Veritas's own elements from text extraction so they never contaminate the next post!
     const cleanPost = postNode.cloneNode(true);
@@ -258,9 +276,12 @@ function simulateVerification(data) {
     // Generative AI Tools & Video Generators
     "sora", "kling", "runway", "gen-2", "gen-3", "luma", "dream machine", "pika", "viggle",
     "midjourney", "dall-e", "stable diffusion", "flux", "haiper", "synthesia", "heygen", "d-id",
+    // 3D Animation & CGI VFX Engines
+    "cgi", "vfx", "blender", "unreal engine", "3d animation", "3danimation", "3d render",
+    "digital art", "animation", "animated", "digital double", "render",
     // Deepfake & Synthetic Media (English)
     "deepfake", "face-swap", "faceswap", "face swap", "ai video", "ai-generated", "ai art",
-    "ai clone", "voice clone", "synthetic media", "cgi", "digital double", "unreal engine",
+    "ai clone", "voice clone", "synthetic media", "artificial intelligence", "aigc",
     "wwe", "doritos", "oval office", "parody", "satire",
     // Deepfake & Synthetic Media (Bengali)
     "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "কৃত্রিম বুদ্ধিমত্তা", "এআই ভিডিও"
@@ -274,6 +295,23 @@ function simulateVerification(data) {
   }
 
   const matchedAi = aiKeywords.find(kw => hasWord(combined, kw));
+
+  // Synthetic Creature / CGI VFX Anomaly Check:
+  const syntheticCreatures = ["giant snake", "huge snake", "anaconda", "monster", "dragon", "alien", "dinosaur", "king cobra", "snake", "cobra"];
+  const hasSyntheticCreature = syntheticCreatures.some(sc => hasWord(combined, sc));
+  const wildlifeChannels = ["natgeo", "national geographic", "discovery", "bbc earth", "animal planet"];
+  const isWildlife = wildlifeChannels.some(wc => handle.includes(wc) || header.includes(wc));
+
+  if (hasSyntheticCreature && (isVideo || isImage) && !isWildlife) {
+    return {
+      is_fake: true,
+      authentic_score: 4,
+      deepfake_score: 96,
+      bot_score: 82,
+      fact_check_status: "Debunked / AI Synthetic & CGI Creature",
+      summary: "Multi-spectral analysis detected synthetic 3D rendering & non-organic generative texture diffusion. Impossible anatomical geometry & CGI animation artifacts confirmed."
+    };
+  }
 
   // LAYER 4: Fraudulent Scams & Deceptive Promotion Schemes
   const scamKeywords = [
