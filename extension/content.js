@@ -473,19 +473,18 @@ function renderResultCard(postNode, data, triggerBtn) {
     postNode.appendChild(card);
   }
 
-  // Unclip all ancestor containers so Facebook never cuts off the height!
-  let p = card.parentElement;
-  while (p && p !== document.body) {
-    if (p.style) {
-      p.style.setProperty("overflow", "visible", "important");
-      p.style.setProperty("overflow-y", "visible", "important");
-      p.style.setProperty("max-height", "none", "important");
-      if (p.style.height && p.style.height !== "auto") {
-        p.style.setProperty("height", "auto", "important");
+  // Auto-dismiss card cleanly when user scrolls to another reel or post
+  const onScrollHandler = () => {
+    if (triggerBtn && card.parentElement) {
+      const rect = triggerBtn.getBoundingClientRect();
+      if (rect.top < -600 || rect.bottom > window.innerHeight + 600) {
+        card.remove();
+        triggerBtn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
+        window.removeEventListener("scroll", onScrollHandler, true);
       }
     }
-    p = p.parentElement;
-  }
+  };
+  window.addEventListener("scroll", onScrollHandler, { passive: true, capture: true });
 }
 
 function isCommentElement(el) {
