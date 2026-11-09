@@ -350,16 +350,21 @@ function renderResultCard(postNode, data, triggerBtn) {
 
   card.className = "veritas-card veritas-result-card";
   
-  // Compact, modern, 100% responsive styling (Mobile, Laptop, Desktop)
+  // Compact, modern, 100% responsive styling (Mobile, Laptop, Desktop, Reels)
   card.style.cssText = `
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
     box-sizing: border-box !important;
     width: 100% !important;
-    max-width: 100% !important;
+    max-width: 460px !important;
     height: auto !important;
-    margin: 8px 0 10px 0 !important;
+    min-height: auto !important;
+    max-height: fit-content !important;
+    align-self: flex-start !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+    margin: 8px auto 10px auto !important;
     padding: 10px 12px !important;
     background: #0f1419 !important;
     border: 1px solid rgba(29, 155, 240, 0.4) !important;
