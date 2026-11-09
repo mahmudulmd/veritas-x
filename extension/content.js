@@ -16,7 +16,7 @@ function getPlatform() {
   return "x";
 }
 
-function createVerifyButton(barNode) {
+function createVerifyButton(postNode) {
   const btn = document.createElement("button");
   btn.className = "veritas-verify-btn";
   btn.setAttribute("title", "Veritas Universal AI Verification");
@@ -27,7 +27,7 @@ function createVerifyButton(barNode) {
     e.stopPropagation();
     e.preventDefault();
 
-    const post = findPostContainerForButton(btn) || barNode;
+    const post = findPostContainerForButton(btn) || postNode;
 
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
@@ -414,53 +414,88 @@ function isCommentElement(el) {
   return false;
 }
 
-function getFacebookActionBars() {
-  const actionGroups = new Set();
+// Find every post's Share button directly
+function findFacebookShareButtons() {
+  const shareButtons = [];
+  const seenPosts = new Set();
 
-  // Find all buttons that represent Like / Comment / Share actions
-  const actionButtons = document.querySelectorAll(
-    'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
-    'span[aria-label*="Like" i], span[aria-label*="লাইক" i], ' +
-    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], ' +
-    'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i]'
+  // 1. Direct search by aria-label (English and Bengali)
+  const labeledButtons = document.querySelectorAll(
+    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
+    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
   );
 
-  actionButtons.forEach(btn => {
+  labeledButtons.forEach(btn => {
     if (isCommentElement(btn)) return;
-    if (btn.classList.contains("veritas-verify-btn")) return;
-    
-    // Find the horizontal actions group holding Like, Comment, Share
-    let p = btn.parentElement;
-    while (p && p !== document.body) {
-      // Must not go past the post container or include media
-      if (p.querySelector('video, img[src*="fbcdn"]')) break;
-      const btns = p.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]');
-      // The action group contains 2 to 5 buttons (Like, Comment, Share)
-      if (btns.length >= 2 && btns.length <= 6) {
-        actionGroups.add(p);
-        break;
-      }
-      p = p.parentElement;
+    const target = btn.closest('div[role="button"], span[role="button"], div[tabindex="0"]') || btn;
+    const post = findPostContainerForButton(target);
+    if (post && !seenPosts.has(post)) {
+      seenPosts.add(post);
+      shareButtons.push(target);
     }
   });
 
-  // Fallback for posts without aria-labels: scan post containers from bottom up
-  document.querySelectorAll('div[role="feed"] > div, div[role="article"]').forEach(post => {
-    if (isCommentElement(post)) return;
-    const candidates = post.querySelectorAll('div[style*="flex"], div[class*="x1n2onr6"]');
-    for (let i = candidates.length - 1; i >= 0; i--) {
-      const c = candidates[i];
-      if (isCommentElement(c)) continue;
-      if (c.querySelector('video, img[src*="fbcdn"]')) continue;
-      const btns = c.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]');
-      if (btns.length >= 2 && btns.length <= 5) {
-        actionGroups.add(c);
-        break;
+  // 2. Structural discovery: Scan all post action rows
+  // Every post action row on Facebook has: [Like] [Comment] [Share]
+  // The LAST button in that action row is ALWAYS the Share button!
+  const rows = document.querySelectorAll('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
+
+  rows.forEach(row => {
+    if (isCommentElement(row)) return;
+    // Skip if it contains media (images/videos)
+    if (row.querySelector('video, img[src*="fbcdn"]')) return;
+    // Skip reaction emoji bar on the right
+    if (row.querySelector('img[src*="emoji"], span[style*="background-image"]')) return;
+
+    // Get all interactive buttons in this row
+    const btns = Array.from(
+      row.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]')
+    ).filter(b => !b.classList.contains("veritas-verify-btn") && !b.closest(".veritas-verify-btn"));
+
+    // A standard post action bar has between 2 and 4 buttons (Like, Comment, Share)
+    if (btns.length >= 2 && btns.length <= 4) {
+      const post = findPostContainerForButton(row);
+      if (post && !seenPosts.has(post)) {
+        seenPosts.add(post);
+        // The LAST button is the Share button!
+        const shareBtn = btns[btns.length - 1];
+        shareButtons.push(shareBtn);
       }
     }
   });
 
-  return Array.from(actionGroups);
+  return shareButtons;
+}
+
+function injectFacebookButtons() {
+  // 1. Clean any duplicate buttons
+  document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
+    if (btn.nextElementSibling?.classList.contains("veritas-verify-btn")) {
+      btn.nextElementSibling.remove();
+    }
+  });
+
+  // Remove buttons accidentally in comments
+  document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
+
+  // 2. Find every post's Share button
+  const shareButtons = findFacebookShareButtons();
+
+  shareButtons.forEach(shareBtn => {
+    // If our button is already right next to this share button, skip!
+    if (
+      shareBtn.nextElementSibling?.classList.contains("veritas-verify-btn") ||
+      shareBtn.parentElement?.querySelector(":scope > .veritas-verify-btn")
+    ) {
+      return;
+    }
+
+    const post = findPostContainerForButton(shareBtn) || shareBtn.parentElement;
+    const btn = createVerifyButton(post);
+
+    // INJECT RIGHT NEXT TO THE SHARE BUTTON!
+    shareBtn.insertAdjacentElement("afterend", btn);
+  });
 }
 
 function injectVeritasButtons() {
@@ -477,31 +512,7 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Clean duplicates: If an action group already has > 1 button, keep only the first
-    document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
-      const siblings = btn.parentElement?.querySelectorAll(":scope > .veritas-verify-btn");
-      if (siblings && siblings.length > 1) {
-        for (let i = 1; i < siblings.length; i++) siblings[i].remove();
-      }
-    });
-
-    // Remove buttons in comments
-    document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
-
-    // 2. Inject into each action group
-    const groups = getFacebookActionBars();
-
-    groups.forEach(group => {
-      // If this group or its parent already has our button, skip
-      if (group.querySelector(".veritas-verify-btn") || group.parentElement?.querySelector(".veritas-verify-btn")) {
-        return;
-      }
-
-      const btn = createVerifyButton(group);
-      
-      // Append to the action group (places it at the end, immediately after the Share button!)
-      group.appendChild(btn);
-    });
+    injectFacebookButtons();
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
     posts.forEach(post => {
