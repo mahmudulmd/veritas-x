@@ -61,31 +61,41 @@
   box-sizing: border-box !important;
   width: 100% !important;
   max-width: 100% !important;
-  min-height: 280px !important;
   height: auto !important;
-  margin: 14px 0 16px 0 !important;
-  padding: 18px 20px !important;
+  margin: 8px 0 12px 0 !important;
+  padding: 12px 14px !important;
   background: #0f1419 !important;
   border: 1px solid rgba(29, 155, 240, 0.4) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
   color: #f7f9f9 !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
   position: relative !important;
   z-index: 99999 !important;
   clear: both !important;
-  overflow: visible !important;
-  animation: veritas-slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  overflow: hidden !important;
+  word-break: break-word !important;
+  animation: veritas-slide-down 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes veritas-slide-down {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-6px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  #veritas-unified-card,
+  .veritas-result-card,
+  .veritas-card {
+    padding: 10px 10px !important;
+    margin: 6px 0 !important;
+    border-radius: 10px !important;
   }
 }
 

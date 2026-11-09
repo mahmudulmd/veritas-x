@@ -350,7 +350,7 @@ function renderResultCard(postNode, data, triggerBtn) {
 
   card.className = "veritas-card veritas-result-card";
   
-  // Explicit, rock-solid inline styles ensuring 100% full height visibility
+  // Compact, modern, 100% responsive styling (Mobile, Laptop, Desktop)
   card.style.cssText = `
     display: block !important;
     visibility: visible !important;
@@ -358,20 +358,20 @@ function renderResultCard(postNode, data, triggerBtn) {
     box-sizing: border-box !important;
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 280px !important;
     height: auto !important;
-    margin: 14px 0 16px 0 !important;
-    padding: 18px 20px !important;
+    margin: 8px 0 10px 0 !important;
+    padding: 10px 12px !important;
     background: #0f1419 !important;
     border: 1px solid rgba(29, 155, 240, 0.4) !important;
-    border-radius: 14px !important;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
     color: #f7f9f9 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
     position: relative !important;
     z-index: 99999 !important;
     clear: both !important;
-    overflow: visible !important;
+    overflow: hidden !important;
+    word-break: break-word !important;
   `;
 
   const isFake = data.is_fake;
@@ -381,54 +381,55 @@ function renderResultCard(postNode, data, triggerBtn) {
   const badgeText = isFake ? "AI-GENERATED / MANIPULATED" : "SYSTEM VERIFIED";
 
   card.innerHTML = `
-    <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 14px !important; padding-bottom: 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;">
-      <div style="display: flex !important; align-items: center !important; gap: 8px !important; font-size: 14px !important; font-weight: 800 !important; color: #1d9bf0 !important;">
+    <!-- Header -->
+    <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 8px !important; padding-bottom: 6px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;">
+      <div style="display: flex !important; align-items: center !important; gap: 6px !important; font-size: 12px !important; font-weight: 800 !important; color: #1d9bf0 !important;">
         <span>⚡</span>
         <span>VERITAS VERIFIED NOTE</span>
       </div>
-      <div style="display: flex !important; align-items: center !important; gap: 10px !important;">
-        <div style="padding: 4px 10px !important; border-radius: 6px !important; font-size: 11px !important; font-weight: 800 !important; background: ${badgeBg} !important; color: ${statusColor} !important; border: 1px solid ${badgeBorder} !important;">
+      <div style="display: flex !important; align-items: center !important; gap: 8px !important;">
+        <div style="padding: 2px 7px !important; border-radius: 4px !important; font-size: 10px !important; font-weight: 800 !important; background: ${badgeBg} !important; color: ${statusColor} !important; border: 1px solid ${badgeBorder} !important; white-space: nowrap !important;">
           ${badgeText}
         </div>
-        <button id="veritas-close-card" style="background: none !important; border: none !important; color: #8b98a5 !important; font-size: 16px !important; cursor: pointer !important; padding: 2px 6px !important; line-height: 1 !important;">✕</button>
+        <button id="veritas-close-card" style="background: none !important; border: none !important; color: #8b98a5 !important; font-size: 15px !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important;">✕</button>
       </div>
     </div>
 
-    <!-- 3 High Impact Metric Tiles -->
-    <div style="display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 10px !important; margin-bottom: 14px !important;">
+    <!-- 3 Compact Metric Tiles (100% Responsive on Mobile & Desktop) -->
+    <div style="display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; margin-bottom: 8px !important;">
       <!-- Original Authenticity -->
-      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
-        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">ORIGINAL / AUTHENTIC</div>
-        <div style="font-size: 22px !important; font-weight: 800 !important; color: ${isFake ? '#8b98a5' : '#00ba7c'} !important;">${data.authentic_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">ORIGINAL</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isFake ? '#8b98a5' : '#00ba7c'} !important; line-height: 1.1 !important;">${data.authentic_score}%</div>
       </div>
       <!-- AI / Deepfake Risk -->
-      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
-        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">AI / DEEPFAKE RISK</div>
-        <div style="font-size: 22px !important; font-weight: 800 !important; color: ${isFake ? '#f4212e' : '#00ba7c'} !important;">${data.deepfake_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">AI RISK</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isFake ? '#f4212e' : '#00ba7c'} !important; line-height: 1.1 !important;">${data.deepfake_score}%</div>
       </div>
       <!-- Bot / Synthetic Probability -->
-      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 12px 10px !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
-        <div style="font-size: 10px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 4px !important;">BOT / SYNTHETIC</div>
-        <div style="font-size: 22px !important; font-weight: 800 !important; color: #1d9bf0 !important;">${data.bot_score}%</div>
+      <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
+        <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">BOT / SYNTH</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: #1d9bf0 !important; line-height: 1.1 !important;">${data.bot_score}%</div>
       </div>
     </div>
 
     <!-- Claim & Status Summary -->
-    <div style="background: rgba(255, 255, 255, 0.04) !important; padding: 12px 14px !important; border-radius: 10px !important; font-size: 13px !important; line-height: 1.5 !important; color: #e7e9ea !important; margin-bottom: 14px !important; border-left: 3px solid ${statusColor} !important;">
-      <div style="font-weight: 700 !important; margin-bottom: 3px !important; color: ${statusColor} !important;">${data.fact_check_status}</div>
+    <div style="background: rgba(255, 255, 255, 0.04) !important; padding: 7px 10px !important; border-radius: 8px !important; font-size: 11px !important; line-height: 1.4 !important; color: #e7e9ea !important; margin-bottom: 8px !important; border-left: 3px solid ${statusColor} !important;">
+      <div style="font-weight: 700 !important; margin-bottom: 2px !important; color: ${statusColor} !important; font-size: 11px !important;">${data.fact_check_status}</div>
       ${data.summary}
     </div>
 
     <!-- Official Founder Verification Box -->
-    <div style="background: rgba(29, 155, 240, 0.1) !important; border: 1px solid rgba(29, 155, 240, 0.35) !important; border-radius: 10px !important; padding: 10px 14px !important;">
-      <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 4px !important;">
-        <span style="background: #1d9bf0 !important; color: #fff !important; font-size: 9px !important; font-weight: 800 !important; padding: 2px 6px !important; border-radius: 4px !important; text-transform: uppercase !important;">FOUNDER & CREATOR</span>
-        <span style="font-size: 11px !important; color: #00ba7c !important; font-weight: 700 !important;">● ENGINE VERIFIED</span>
+    <div style="background: rgba(29, 155, 240, 0.1) !important; border: 1px solid rgba(29, 155, 240, 0.35) !important; border-radius: 8px !important; padding: 6px 10px !important;">
+      <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 2px !important;">
+        <span style="background: #1d9bf0 !important; color: #fff !important; font-size: 8px !important; font-weight: 800 !important; padding: 1px 5px !important; border-radius: 3px !important; text-transform: uppercase !important;">FOUNDER & CREATOR</span>
+        <span style="font-size: 10px !important; color: #00ba7c !important; font-weight: 700 !important;">● ENGINE VERIFIED</span>
       </div>
-      <div style="font-size: 14px !important; font-weight: 800 !important; color: #ffffff !important; margin-bottom: 2px !important;">
+      <div style="font-size: 12px !important; font-weight: 800 !important; color: #ffffff !important; margin-bottom: 2px !important;">
         Md. Mahmudul Hoque ⚡
       </div>
-      <div style="font-size: 11px !important; color: #8b98a5 !important; display: flex !important; flex-wrap: wrap !important; gap: 12px !important; margin-top: 4px !important;">
+      <div style="font-size: 10px !important; color: #8b98a5 !important; display: flex !important; flex-wrap: wrap !important; gap: 8px !important;">
         <span>✉️ <b>mahmudulhoque934@gmail.com</b></span>
         <span>⚡ <b>@hmahmudulm</b></span>
         <span>📍 <b>Panchagarh, Bangladesh 🌐</b></span>
@@ -459,6 +460,15 @@ function renderResultCard(postNode, data, triggerBtn) {
       actionBar.parentElement.appendChild(card);
     } else if (tweet) {
       tweet.appendChild(card);
+    }
+  } else if (platform === "instagram") {
+    // Instagram in-place insertion directly under the action icons
+    const post = triggerBtn.closest('article, div[role="presentation"], div[role="dialog"]') || postNode;
+    const section = triggerBtn.closest('section') || triggerBtn.parentElement;
+    if (section && section.parentElement) {
+      section.parentElement.insertBefore(card, section.nextSibling);
+    } else if (post) {
+      post.appendChild(card);
     }
   } else {
     // Facebook in-place insertion directly below the clicked post's action bar
@@ -623,14 +633,31 @@ function injectVeritasButtons() {
   } else if (platform === "facebook") {
     injectFacebookButtons();
   } else if (platform === "instagram") {
-    const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
-    posts.forEach(post => {
+    // 1. Standard Instagram feed posts
+    document.querySelectorAll('article').forEach(post => {
       if (post.querySelector(".veritas-verify-btn")) return;
-      const actionSection = post.querySelector('section._aamu, div._aamv');
-      if (actionSection) {
+      const section = post.querySelector('section');
+      if (section) {
+        const shareSvg = section.querySelector('svg[aria-label*="Share" i], svg[aria-label*="Direct" i], svg[aria-label*="Send" i]');
+        const shareBtn = shareSvg ? (shareSvg.closest('div[role="button"], button') || shareSvg.parentElement) : null;
         const btn = createVerifyButton(post);
-        btn.style.margin = "8px 4px";
-        actionSection.appendChild(btn);
+        btn.style.margin = "0 6px 0 8px";
+        if (shareBtn) {
+          shareBtn.insertAdjacentElement("afterend", btn);
+        } else {
+          section.appendChild(btn);
+        }
+      }
+    });
+
+    // 2. Instagram Reels & Dialogs
+    document.querySelectorAll('div[role="dialog"], div._ab1c, div._aaoo').forEach(reel => {
+      if (reel.querySelector(".veritas-verify-btn")) return;
+      const section = reel.querySelector('section, div._aamv');
+      if (section) {
+        const btn = createVerifyButton(reel);
+        btn.style.margin = "4px";
+        section.appendChild(btn);
       }
     });
   } else if (platform === "youtube") {
