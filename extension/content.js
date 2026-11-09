@@ -75,6 +75,14 @@ function createVerifyButton(postNode) {
 
 function findPostContainerForButton(btn) {
   if (!btn) return null;
+  const platform = getPlatform();
+
+  // On Twitter / X: strictly target the tweet article
+  if (platform === "x") {
+    return btn.closest('article[data-testid="tweet"]');
+  }
+
+  // On Facebook:
   let curr = btn;
   let bestPost = null;
 
@@ -83,16 +91,11 @@ function findPostContainerForButton(btn) {
       return curr;
     }
 
-    // A real Facebook post container has both the media/body and header/author
     const hasMedia = !!curr.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"]');
     const hasHeader = !!curr.querySelector('h2, h3, h4, strong, div[dir="auto"], [data-ad-preview="message"]');
 
     if (hasMedia && hasHeader) {
       bestPost = curr;
-    }
-
-    if (curr.parentElement && (curr.parentElement.getAttribute("role") === "feed" || curr.parentElement.getAttribute("role") === "main")) {
-      return curr;
     }
 
     curr = curr.parentElement;
@@ -121,17 +124,21 @@ function extractPostData(postNode) {
     mediaType = vid ? "video" : (img ? "image" : "text");
     mediaUrl = vid ? vid.src : (img ? img.src : null);
   } else if (platform === "facebook") {
+    // Exclude Veritas's own elements from text extraction so they never contaminate the next post!
+    const cleanPost = postNode.cloneNode(true);
+    cleanPost.querySelectorAll('.veritas-card, .veritas-verify-btn, #veritas-unified-card').forEach(el => el.remove());
+
     // 1. Author / Page Header
-    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a, strong');
+    const userEl = cleanPost.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a, strong');
     userHandle = userEl ? userEl.innerText.trim() : "";
     fullUserHeader = userHandle;
 
     // 2. Post Captions, Titles & Overlay Texts
-    const textEls = postNode.querySelectorAll('div[dir="auto"], div[data-ad-preview="message"], span[dir="auto"], h2, h3, h4');
+    const textEls = cleanPost.querySelectorAll('div[dir="auto"], div[data-ad-preview="message"], span[dir="auto"], h2, h3, h4');
     const texts = Array.from(textEls).map(t => t.innerText.trim()).filter(Boolean);
     const uniqueTexts = Array.from(new Set(texts)).join(" ");
-    const rawPostText = (postNode.innerText || "").slice(0, 1000);
-    tweetText = (uniqueTexts + " " + rawPostText).slice(0, 1200);
+    const rawPostText = (cleanPost.innerText || "").slice(0, 800);
+    tweetText = (uniqueTexts + " " + rawPostText).slice(0, 1000);
 
     // 3. Media Detection (Video vs Image)
     const vid = postNode.querySelector("video");
@@ -148,7 +155,7 @@ function extractPostData(postNode) {
     }
 
     // 4. Accessibility & Vision Labels
-    const alts = Array.from(postNode.querySelectorAll('img[alt], video[aria-label]'))
+    const alts = Array.from(cleanPost.querySelectorAll('img[alt], video[aria-label]'))
       .map(el => el.getAttribute("alt") || el.getAttribute("aria-label") || "")
       .filter(Boolean);
     mediaLabels = alts.join(" ");
@@ -250,8 +257,7 @@ function simulateVerification(data) {
     "wwe", "doritos", "oval office", "parody", "satire",
     // Deepfake & Synthetic Media (Bengali)
     "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "ক্লোন", "কৃত্রিম বুদ্ধিমত্তা",
-    "এআই ভিডিও", "মডেলিংয়ে", "মডেলিংয়ে", "মডেলিং", "খাইরুল", "হিরো আলম", "nasir alam",
-    "রোস্টিং", "রোস্ট", "মজা", "ফানি ভিডিও"
+    "এআই ভিডিও", "মডেলিংয়ে লিডার খাইরুল", "লিডার খাইরুল", "nasir alam"
   ];
 
   const matchedAi = aiKeywords.find(kw => combined.includes(kw));
@@ -306,25 +312,7 @@ function simulateVerification(data) {
     };
   }
 
-  // LAYER 6: Media Forensics for Sensational Viral Videos & Images
-  if (isVideo || isImage) {
-    const viralSensational = ["viral", "unbelievable", "shocking", "দেখুন কি করলো", "অবাক করা", "ভাইরাল", "হাসির"];
-    const isSensational = viralSensational.some(kw => combined.includes(kw));
-
-    if (isSensational) {
-      const deepfake = Math.floor(Math.random() * 6) + 89; // 89% - 94%
-      return {
-        is_fake: true,
-        authentic_score: 100 - deepfake,
-        deepfake_score: deepfake,
-        bot_score: Math.floor(Math.random() * 12) + 72,
-        fact_check_status: "Debunked / Manipulated Viral Media",
-        summary: "Temporal frequency analysis detected non-continuous frame cadence and localized pixel artifact synthesis. High likelihood of generative or edited manipulation."
-      };
-    }
-  }
-
-  // LAYER 7: Natural Organic Post Baseline (Camera / Everyday Posts)
+  // LAYER 6: Natural Organic Post Baseline (Camera / Everyday Videos & Posts)
   const deepfake = Math.floor(Math.random() * 3) + 2; // 2% - 4%
   const authentic = 100 - deepfake;                   // 96% - 98%
   const bot = Math.floor(Math.random() * 4) + 3;       // 3% - 6%
@@ -448,29 +436,41 @@ function renderResultCard(postNode, data, triggerBtn) {
   }
 
   // BULLETPROOF IN-PLACE INSERTION:
-  // Insert the card DIRECTLY below the action bar of THIS exact post!
-  let inserted = false;
-  if (triggerBtn) {
-    let target = triggerBtn;
-    let p = triggerBtn.parentElement;
+  const platform = getPlatform();
 
-    // Climb up to find the footer/action bar container that is a child of the post
-    while (p && p.parentElement && p.parentElement !== document.body && p.parentElement.getAttribute("role") !== "feed") {
-      if (p.parentElement.querySelector('video, img[src*="fbcdn"], div[dir="auto"], [data-ad-preview="message"]')) {
-        target = p;
-        break;
+  if (platform === "x") {
+    // Strict Native Twitter/X insertion: directly inside the tweet under the action bar
+    const tweet = triggerBtn.closest('article[data-testid="tweet"]') || postNode;
+    const actionBar = triggerBtn.closest('div[role="group"]') || triggerBtn.parentElement;
+    if (actionBar && actionBar.parentElement) {
+      actionBar.parentElement.appendChild(card);
+    } else if (tweet) {
+      tweet.appendChild(card);
+    }
+  } else {
+    // Facebook in-place insertion directly below the clicked post's action bar
+    let inserted = false;
+    if (triggerBtn) {
+      let target = triggerBtn;
+      let p = triggerBtn.parentElement;
+
+      while (p && p.parentElement && p.parentElement !== document.body && p.parentElement.getAttribute("role") !== "feed") {
+        if (p.parentElement.querySelector('video, img[src*="fbcdn"], div[dir="auto"], [data-ad-preview="message"]')) {
+          target = p;
+          break;
+        }
+        p = p.parentElement;
       }
-      p = p.parentElement;
+
+      if (target && target.parentElement) {
+        target.insertAdjacentElement("afterend", card);
+        inserted = true;
+      }
     }
 
-    if (target && target.parentElement) {
-      target.insertAdjacentElement("afterend", card);
-      inserted = true;
+    if (!inserted && postNode) {
+      postNode.appendChild(card);
     }
-  }
-
-  if (!inserted && postNode) {
-    postNode.appendChild(card);
   }
 
   // Auto-dismiss card cleanly when user scrolls to another reel or post
