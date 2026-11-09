@@ -414,121 +414,53 @@ function isCommentElement(el) {
   return false;
 }
 
-function findShareButtonInBar(bar) {
-  // Strategy A: Find by explicit Share aria-label
-  const shareByAria = bar.querySelector(
-    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
-    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
-  );
-  if (shareByAria && !isCommentElement(shareByAria)) {
-    return shareByAria.closest('div[role="button"], span[role="button"]') || shareByAria;
-  }
-
-  // Strategy B: Find action buttons with SVGs (Like, Comment, Share)
-  // Exclude reaction emoji summary on the right (which uses emoji images or spans)
-  const buttonsWithSvg = Array.from(
-    bar.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]')
-  ).filter(btn => {
-    if (btn.classList.contains("veritas-verify-btn")) return false;
-    // Exclude reaction emoji counters (e.g., love, like, haha icons)
-    if (btn.querySelector('img[src*="emoji"], span[style*="background-image"]')) return false;
-    const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
-    if (aria.includes("reaction") || aria.includes("প্রতিক্রিয়া") || aria.includes("see who reacted")) return false;
-    // Must contain an SVG icon (the thumb, bubble, or share arrow)
-    return !!btn.querySelector("svg");
-  });
-
-  if (buttonsWithSvg.length >= 3) {
-    // Standard row: [0] = Like, [1] = Comment, [2] = Share!
-    return buttonsWithSvg[2];
-  } else if (buttonsWithSvg.length === 2) {
-    return buttonsWithSvg[1];
-  } else if (buttonsWithSvg.length === 1) {
-    return buttonsWithSvg[0];
-  }
-
-  return null;
-}
-
 function getFacebookActionBars() {
-  const bars = [];
-  const seen = new Set();
+  const actionGroups = new Set();
 
-  // Strategy 1: Find Share buttons (Only main posts have share buttons, comments NEVER do!)
-  const shareEls = document.querySelectorAll(
-    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
-    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
-  );
-
-  shareEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        if (!seen.has(parent)) {
-          seen.add(parent);
-          bars.push(parent);
-        }
-        break;
-      }
-      parent = parent.parentElement;
-    }
-  });
-
-  // Strategy 2: Find Like / Comment buttons (excluding comments which have "Reply" / "উত্তর")
-  const likeEls = document.querySelectorAll(
+  // Find all buttons that represent Like / Comment / Share actions
+  const actionButtons = document.querySelectorAll(
     'div[aria-label*="Like" i], div[aria-label*="লাইক" i], ' +
-    'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i], div[aria-label*="কমেন্ট" i]'
+    'span[aria-label*="Like" i], span[aria-label*="লাইক" i], ' +
+    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], ' +
+    'div[aria-label*="Comment" i], div[aria-label*="মন্তব্য" i]'
   );
 
-  likeEls.forEach(el => {
-    if (isCommentElement(el)) return;
-    let parent = el.parentElement;
-    while (parent && parent !== document.body) {
-      if (parent.querySelector('div[aria-label*="Reply" i], div[aria-label*="উত্তর" i]')) {
-        return; // It's a comment row, skip
-      }
-      const count = parent.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]').length;
-      if (count >= 2 && count <= 8) {
-        if (!seen.has(parent)) {
-          seen.add(parent);
-          bars.push(parent);
-        }
+  actionButtons.forEach(btn => {
+    if (isCommentElement(btn)) return;
+    if (btn.classList.contains("veritas-verify-btn")) return;
+    
+    // Find the horizontal actions group holding Like, Comment, Share
+    let p = btn.parentElement;
+    while (p && p !== document.body) {
+      // Must not go past the post container or include media
+      if (p.querySelector('video, img[src*="fbcdn"]')) break;
+      const btns = p.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]');
+      // The action group contains 2 to 5 buttons (Like, Comment, Share)
+      if (btns.length >= 2 && btns.length <= 6) {
+        actionGroups.add(p);
         break;
       }
-      parent = parent.parentElement;
+      p = p.parentElement;
     }
   });
 
-  // Strategy 3: Every video container's bottom action bar
-  const videos = document.querySelectorAll("video");
-  videos.forEach(vid => {
-    if (isCommentElement(vid)) return;
-    let ancestor = vid.closest('div[role="article"], div[role="feed"] > div') || vid.parentElement?.parentElement?.parentElement?.parentElement;
-    if (ancestor) {
-      const row = ancestor.querySelector('div[aria-label*="Like" i], div[aria-label*="লাইক" i]')?.closest('div[style*="flex"]');
-      if (row && !isCommentElement(row) && !seen.has(row)) {
-        seen.add(row);
-        bars.push(row);
+  // Fallback for posts without aria-labels: scan post containers from bottom up
+  document.querySelectorAll('div[role="feed"] > div, div[role="article"]').forEach(post => {
+    if (isCommentElement(post)) return;
+    const candidates = post.querySelectorAll('div[style*="flex"], div[class*="x1n2onr6"]');
+    for (let i = candidates.length - 1; i >= 0; i--) {
+      const c = candidates[i];
+      if (isCommentElement(c)) continue;
+      if (c.querySelector('video, img[src*="fbcdn"]')) continue;
+      const btns = c.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]');
+      if (btns.length >= 2 && btns.length <= 5) {
+        actionGroups.add(c);
+        break;
       }
     }
   });
 
-  // Strategy 4: Fallback for feed posts where standard labels are omitted
-  document.querySelectorAll('div[role="feed"] div[style*="flex"], div[role="article"] div[style*="flex"]').forEach(row => {
-    if (isCommentElement(row) || seen.has(row)) return;
-    const svgs = row.querySelectorAll('svg');
-    const roleBtns = row.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]');
-    if (svgs.length >= 2 && svgs.length <= 4 && roleBtns.length >= 2 && roleBtns.length <= 6) {
-      if (!seen.has(row)) {
-        seen.add(row);
-        bars.push(row);
-      }
-    }
-  });
-
-  return bars;
+  return Array.from(actionGroups);
 }
 
 function injectVeritasButtons() {
@@ -545,7 +477,7 @@ function injectVeritasButtons() {
       }
     });
   } else if (platform === "facebook") {
-    // 1. Clean any duplicate buttons in existing posts
+    // 1. Clean duplicates: If an action group already has > 1 button, keep only the first
     document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
       const siblings = btn.parentElement?.querySelectorAll(":scope > .veritas-verify-btn");
       if (siblings && siblings.length > 1) {
@@ -556,27 +488,19 @@ function injectVeritasButtons() {
     // Remove buttons in comments
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-    // 2. Inject icon-only button IMMEDIATELY to the right of the Share button
-    const actionBars = getFacebookActionBars();
+    // 2. Inject into each action group
+    const groups = getFacebookActionBars();
 
-    actionBars.forEach(bar => {
-      // If this bar or its immediate parent already has our button, skip
-      if (bar.querySelector(".veritas-verify-btn") || bar.parentElement?.querySelector(":scope > .veritas-verify-btn")) return;
+    groups.forEach(group => {
+      // If this group or its parent already has our button, skip
+      if (group.querySelector(".veritas-verify-btn") || group.parentElement?.querySelector(".veritas-verify-btn")) {
+        return;
+      }
 
-      // Find the EXACT Share button (excluding reaction emojis)
-      const shareBtn = findShareButtonInBar(bar);
-      if (!shareBtn) return;
-
-      const btn = createVerifyButton(bar);
-      btn.style.margin = "0 8px";
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.justifyContent = "center";
-      btn.style.verticalAlign = "middle";
-      btn.style.cursor = "pointer";
-
-      // Place immediately to the right of the Share button!
-      shareBtn.insertAdjacentElement("afterend", btn);
+      const btn = createVerifyButton(group);
+      
+      // Append to the action group (places it at the end, immediately after the Share button!)
+      group.appendChild(btn);
     });
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
