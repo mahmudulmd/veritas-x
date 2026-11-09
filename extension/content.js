@@ -21,7 +21,7 @@ function createVerifyButton(barNode) {
   btn.className = "veritas-verify-btn";
   btn.setAttribute("title", "Veritas Universal AI Verification");
   btn.setAttribute("aria-label", "Veritas Verify");
-  btn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
+  btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
   
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -33,7 +33,7 @@ function createVerifyButton(barNode) {
     const existingCard = document.getElementById("veritas-unified-card");
     if (existingCard && existingCard.dataset.currentPostId === (post.id || post.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
       existingCard.style.display = "none";
-      btn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
+      btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
       return;
     }
     
@@ -43,7 +43,7 @@ function createVerifyButton(barNode) {
     // 1. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
       renderResultCard(post, verificationCache.get(postKey), btn);
-      btn.innerHTML = `<span style="font-size: 16px; line-height: 1;" title="Verified">🛡️</span>`;
+      btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
       return;
     }
 
@@ -58,7 +58,7 @@ function createVerifyButton(barNode) {
       } catch (err) {
         console.error("Veritas verification error:", err);
       } finally {
-        btn.innerHTML = `<span style="font-size: 16px; line-height: 1;" title="Verified">🛡️</span>`;
+        btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
       }
     }, 350);
   });
@@ -342,7 +342,7 @@ function renderResultCard(postNode, data, triggerBtn) {
       e.stopPropagation();
       card.remove();
       if (triggerBtn) {
-        triggerBtn.innerHTML = `<span style="font-size: 16px; line-height: 1;">🛡️</span>`;
+        triggerBtn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
       }
     });
   }
@@ -412,6 +412,42 @@ function isCommentElement(el) {
     return true;
   }
   return false;
+}
+
+function findShareButtonInBar(bar) {
+  // Strategy A: Find by explicit Share aria-label
+  const shareByAria = bar.querySelector(
+    'div[aria-label*="Share" i], div[aria-label*="শেয়ার" i], div[aria-label*="শেয়ার" i], div[aria-label*="Send this" i], ' +
+    'span[aria-label*="Share" i], span[aria-label*="শেয়ার" i], span[aria-label*="শেয়ার" i]'
+  );
+  if (shareByAria && !isCommentElement(shareByAria)) {
+    return shareByAria.closest('div[role="button"], span[role="button"]') || shareByAria;
+  }
+
+  // Strategy B: Find action buttons with SVGs (Like, Comment, Share)
+  // Exclude reaction emoji summary on the right (which uses emoji images or spans)
+  const buttonsWithSvg = Array.from(
+    bar.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]')
+  ).filter(btn => {
+    if (btn.classList.contains("veritas-verify-btn")) return false;
+    // Exclude reaction emoji counters (e.g., love, like, haha icons)
+    if (btn.querySelector('img[src*="emoji"], span[style*="background-image"]')) return false;
+    const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
+    if (aria.includes("reaction") || aria.includes("প্রতিক্রিয়া") || aria.includes("see who reacted")) return false;
+    // Must contain an SVG icon (the thumb, bubble, or share arrow)
+    return !!btn.querySelector("svg");
+  });
+
+  if (buttonsWithSvg.length >= 3) {
+    // Standard row: [0] = Like, [1] = Comment, [2] = Share!
+    return buttonsWithSvg[2];
+  } else if (buttonsWithSvg.length === 2) {
+    return buttonsWithSvg[1];
+  } else if (buttonsWithSvg.length === 1) {
+    return buttonsWithSvg[0];
+  }
+
+  return null;
 }
 
 function getFacebookActionBars() {
@@ -520,27 +556,27 @@ function injectVeritasButtons() {
     // Remove buttons in comments
     document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(el => el.remove());
 
-    // 2. Inject icon-only button to the RIGHT of the last action button (Share button)
+    // 2. Inject icon-only button IMMEDIATELY to the right of the Share button
     const actionBars = getFacebookActionBars();
 
     actionBars.forEach(bar => {
       // If this bar or its immediate parent already has our button, skip
       if (bar.querySelector(".veritas-verify-btn") || bar.parentElement?.querySelector(":scope > .veritas-verify-btn")) return;
 
-      // Find all interactive action buttons in this row (Like, Comment, Share)
-      const buttons = Array.from(
-        bar.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"]')
-      ).filter(b => !b.classList.contains("veritas-verify-btn"));
-
-      if (buttons.length === 0) return;
-
-      // The LAST button in this action row is the Share button!
-      const lastBtn = buttons[buttons.length - 1];
+      // Find the EXACT Share button (excluding reaction emojis)
+      const shareBtn = findShareButtonInBar(bar);
+      if (!shareBtn) return;
 
       const btn = createVerifyButton(bar);
-      
+      btn.style.margin = "0 8px";
+      btn.style.display = "inline-flex";
+      btn.style.alignItems = "center";
+      btn.style.justifyContent = "center";
+      btn.style.verticalAlign = "middle";
+      btn.style.cursor = "pointer";
+
       // Place immediately to the right of the Share button!
-      lastBtn.insertAdjacentElement("afterend", btn);
+      shareBtn.insertAdjacentElement("afterend", btn);
     });
   } else if (platform === "instagram") {
     const posts = document.querySelectorAll('article, div._aaoo, div[role="presentation"]');
