@@ -447,25 +447,24 @@ function renderResultCard(postNode, data, triggerBtn) {
     });
   }
 
-  // BULLETPROOF INSERTION:
+  // BULLETPROOF IN-PLACE INSERTION:
+  // Insert the card DIRECTLY below the action bar of THIS exact post!
   let inserted = false;
   if (triggerBtn) {
-    const post = findPostContainerForButton(triggerBtn);
-    let bar = triggerBtn.closest('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]') || triggerBtn.parentElement;
+    let target = triggerBtn;
+    let p = triggerBtn.parentElement;
 
-    if (post && post !== bar) {
-      let child = bar;
-      while (child && child.parentElement && child.parentElement !== post) {
-        child = child.parentElement;
+    // Climb up to find the footer/action bar container that is a child of the post
+    while (p && p.parentElement && p.parentElement !== document.body && p.parentElement.getAttribute("role") !== "feed") {
+      if (p.parentElement.querySelector('video, img[src*="fbcdn"], div[dir="auto"], [data-ad-preview="message"]')) {
+        target = p;
+        break;
       }
-      if (child && child.parentElement === post) {
-        post.insertBefore(card, child);
-        inserted = true;
-      }
+      p = p.parentElement;
     }
 
-    if (!inserted && bar && bar.parentElement) {
-      bar.parentElement.insertBefore(card, bar);
+    if (target && target.parentElement) {
+      target.insertAdjacentElement("afterend", card);
       inserted = true;
     }
   }
@@ -487,11 +486,6 @@ function renderResultCard(postNode, data, triggerBtn) {
     }
     p = p.parentElement;
   }
-
-  // Smoothly center the full card on screen so user sees all % metrics and summary
-  setTimeout(() => {
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, 60);
 }
 
 function isCommentElement(el) {
