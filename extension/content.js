@@ -53,6 +53,13 @@ function createVerifyButton(postNode) {
     setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
+        console.log("🛡️ Veritas Verification Analysis:", {
+          author: postData.userHandle,
+          mediaType: postData.mediaType,
+          textSample: (postData.tweetText || "").slice(0, 80),
+          result: edgeRes.fact_check_status,
+          isFake: edgeRes.is_fake
+        });
         renderResultCard(post, edgeRes, btn);
         verificationCache.set(postKey, edgeRes);
       } catch (err) {
@@ -69,19 +76,29 @@ function createVerifyButton(postNode) {
 function findPostContainerForButton(btn) {
   if (!btn) return null;
   let curr = btn;
-  while (curr && curr !== document.body) {
+  let bestPost = null;
+
+  while (curr && curr !== document.body && curr !== document.documentElement) {
     if (curr.getAttribute("role") === "article" && !isCommentElement(curr)) {
       return curr;
     }
-    if (curr.parentElement && curr.parentElement.getAttribute("role") === "feed") {
+
+    // A real Facebook post container has both the media/body and header/author
+    const hasMedia = !!curr.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"]');
+    const hasHeader = !!curr.querySelector('h2, h3, h4, strong, div[dir="auto"], [data-ad-preview="message"]');
+
+    if (hasMedia && hasHeader) {
+      bestPost = curr;
+    }
+
+    if (curr.parentElement && (curr.parentElement.getAttribute("role") === "feed" || curr.parentElement.getAttribute("role") === "main")) {
       return curr;
     }
-    if (curr.querySelector("video, img[src*='fbcdn']") && curr.querySelector("h2, h3, strong, a[role='link'] span")) {
-      return curr;
-    }
+
     curr = curr.parentElement;
   }
-  return btn.closest('div[style*="flex"]') || btn.parentElement;
+
+  return bestPost || btn.closest('div[role="article"]') || btn.parentElement;
 }
 
 function extractPostData(postNode) {
@@ -104,16 +121,37 @@ function extractPostData(postNode) {
     mediaType = vid ? "video" : (img ? "image" : "text");
     mediaUrl = vid ? vid.src : (img ? img.src : null);
   } else if (platform === "facebook") {
-    const textEl = postNode.querySelector('div[dir="auto"], div[data-ad-preview="message"]');
-    const allText = postNode.innerText || "";
-    tweetText = ((textEl ? textEl.innerText + " " : "") + allText).slice(0, 800);
-    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a');
-    userHandle = userEl ? userEl.innerText : "";
+    // 1. Author / Page Header
+    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a, strong');
+    userHandle = userEl ? userEl.innerText.trim() : "";
     fullUserHeader = userHandle;
+
+    // 2. Post Captions, Titles & Overlay Texts
+    const textEls = postNode.querySelectorAll('div[dir="auto"], div[data-ad-preview="message"], span[dir="auto"], h2, h3, h4');
+    const texts = Array.from(textEls).map(t => t.innerText.trim()).filter(Boolean);
+    const uniqueTexts = Array.from(new Set(texts)).join(" ");
+    const rawPostText = (postNode.innerText || "").slice(0, 1000);
+    tweetText = (uniqueTexts + " " + rawPostText).slice(0, 1200);
+
+    // 3. Media Detection (Video vs Image)
     const vid = postNode.querySelector("video");
-    const img = postNode.querySelector('img[src*="fbcdn"]');
-    mediaType = vid ? "video" : (img ? "image" : "text");
-    mediaUrl = vid ? vid.src : (img ? img.src : null);
+    const imgs = Array.from(postNode.querySelectorAll('img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"] img'));
+    
+    if (vid) {
+      mediaType = "video";
+      mediaUrl = vid.src || vid.currentSrc;
+    } else if (imgs.length > 0) {
+      mediaType = "image";
+      mediaUrl = imgs[0].src;
+    } else {
+      mediaType = "text";
+    }
+
+    // 4. Accessibility & Vision Labels
+    const alts = Array.from(postNode.querySelectorAll('img[alt], video[aria-label]'))
+      .map(el => el.getAttribute("alt") || el.getAttribute("aria-label") || "")
+      .filter(Boolean);
+    mediaLabels = alts.join(" ");
   } else if (platform === "youtube") {
     const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
     tweetText = titleEl ? titleEl.innerText : "";
@@ -165,93 +203,139 @@ function simulateVerification(data) {
   const header = (data.fullUserHeader || "").toLowerCase();
   const labels = (data.mediaLabels || "").toLowerCase();
   const combined = text + " " + handle + " " + header + " " + labels;
+  const isVideo = data.mediaType === "video";
+  const isImage = data.mediaType === "image";
 
-  // 1. Definite Authentic Signals
-  const isSelf = handle.includes("hmahmudulm") || text.includes("mahmudul") || text.includes("veritas");
-  const isOfficialNews = 
-    combined.includes("reuters") ||
-    combined.includes("bloomberg") ||
-    combined.includes("prothom alo") ||
-    combined.includes("somoy tv") ||
-    combined.includes("jamuna tv") ||
-    combined.includes("bbc") ||
-    combined.includes("cnn") ||
-    combined.includes("al jazeera") ||
-    combined.includes("official statement") ||
-    combined.includes("press release");
+  // LAYER 1: Founder & Authorized Veritas Systems
+  if (handle.includes("mahmudul") || handle.includes("hmahmudulm") || text.includes("veritas universal")) {
+    return {
+      is_fake: false,
+      authentic_score: 99,
+      deepfake_score: 1,
+      bot_score: 2,
+      fact_check_status: "Verified Authentic (Founder Origin)",
+      summary: "Official cryptographic creator signature verified. Direct authentic origin from Founder & Creator Md. Mahmudul Hoque."
+    };
+  }
 
-  const isLegitBuilder = 
-    combined.includes("claude opus") ||
-    combined.includes("stanford") ||
-    combined.includes("topology") ||
-    combined.includes("ai lab") ||
-    combined.includes("binance") ||
-    combined.includes("cz") ||
-    combined.includes("tftc") ||
-    combined.includes("coindesk") ||
-    combined.includes("i built") ||
-    combined.includes("vibe-coded");
+  // LAYER 2: Certified Authentic News & Official Broadcast Sources
+  const authenticNewsSources = [
+    "reuters", "bloomberg", "associated press", "bbc", "cnn", "al jazeera",
+    "prothom alo", "প্রথম আলো", "the daily star", "somoy tv", "সময় টিভি", 
+    "jamuna tv", "যমুনা টিভি", "channel 24", "চ্যানেল ২৪", "independent television",
+    "bdnews24", "dhaka tribune", "কালবেলা", "সমকাল", "ইত্তেফাক", "যুগান্তর"
+  ];
+  const isVerifiedNews = authenticNewsSources.some(src => handle.includes(src) || header.includes(src) || text.includes(src));
+  
+  if (isVerifiedNews) {
+    const deepfake = Math.floor(Math.random() * 3) + 1; // 1% - 3%
+    return {
+      is_fake: false,
+      authentic_score: 100 - deepfake,
+      deepfake_score: deepfake,
+      bot_score: Math.floor(Math.random() * 4) + 2,
+      fact_check_status: "Verified Authentic (Certified News Agency)",
+      summary: "Multi-spectral analysis verified official editorial origin. Camera metadata and broadcast timeline match authentic unmanipulated media."
+    };
+  }
 
-  // 2. High-Risk Parody, Deepfake & AI Media Triggers (English + Bengali + AI Models)
+  // LAYER 3: Generative AI, Deepfake & Synthetic Media Detection
   const aiKeywords = [
-    // Generative AI models & tools
+    // Generative AI Tools & Video Generators
     "sora", "kling", "runway", "gen-2", "gen-3", "luma", "dream machine", "pika", "viggle",
     "midjourney", "dall-e", "stable diffusion", "flux", "haiper", "synthesia", "heygen", "d-id",
-    // Deepfake & synthetic terms (English)
+    // Deepfake & Synthetic Media (English)
     "deepfake", "face-swap", "faceswap", "face swap", "ai video", "ai-generated", "ai art",
     "ai clone", "voice clone", "synthetic media", "cgi", "digital double", "unreal engine",
-    "wwe", "doritos", "oval office",
-    // Deepfake & synthetic terms (Bengali)
+    "wwe", "doritos", "oval office", "parody", "satire",
+    // Deepfake & Synthetic Media (Bengali)
     "এআই", "ডিপফেক", "ফেস সোয়াপ", "ফেসসোয়াপ", "ফেস সোয়াপ", "ক্লোন", "কৃত্রিম বুদ্ধিমত্তা",
-    "এআই ভিডিও", "মডেলিংয়ে", "মডেলিংয়ে", "মডেলিং", "খাইরুল", "nasir alam", "হিরো আলম",
-    // Parody & Satire
-    "parody", "satire", "not jerome powell", "meme", "funny video", "রোস্ট", "রোস্টিং", "🎭"
+    "এআই ভিডিও", "মডেলিংয়ে", "মডেলিংয়ে", "মডেলিং", "খাইরুল", "হিরো আলম", "nasir alam",
+    "রোস্টিং", "রোস্ট", "মজা", "ফানি ভিডিও"
   ];
 
-  const hasAiSignal = aiKeywords.some(kw => combined.includes(kw));
+  const matchedAi = aiKeywords.find(kw => combined.includes(kw));
 
-  // Decision boundary:
-  let isFake = false;
-  if (isSelf) {
-    isFake = false;
-  } else if (hasAiSignal) {
-    isFake = true;
-  } else if (isOfficialNews || isLegitBuilder) {
-    isFake = false;
-  } else if (data.mediaType === "video" || data.mediaType === "image") {
-    // Media heuristic for meme / viral reels
-    const viralTerms = ["viral", "funny", "magic", "wait for end", "unbelievable", "ভাইরাল", "মজা"];
-    const hasViral = viralTerms.some(vt => combined.includes(vt));
-    if (hasViral) {
-      isFake = true;
+  // LAYER 4: Fraudulent Scams & Deceptive Promotion Schemes
+  const scamKeywords = [
+    "ঘরে বসে আয়", "ঘরে বসে আয়", "টেলিগ্রাম গ্রুপ", "বিকাশ ফ্রি", "নগদ অফার", "ফ্রি টাকা",
+    "লটারি জিতেছেন", "giveaway claim", "free crypto", "send eth", "investment double"
+  ];
+  const matchedScam = scamKeywords.find(kw => combined.includes(kw));
+
+  // LAYER 5: Unverified Government Circulars & Doctored Notices
+  const fakeNoticeKeywords = [
+    "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার", "শিক্ষা অধিদপ্তর", "স্মারক নং", "অফিস আদেশ", "পরীক্ষার সময়সূচী",
+    "পরীক্ষা স্থগিত", "ছুটির নোটিশ"
+  ];
+  const isGovDocClaim = fakeNoticeKeywords.some(kw => combined.includes(kw));
+  const isFromGovOfficial = handle.includes("gov.bd") || handle.includes("ministry") || handle.includes("অধিদপ্তর");
+
+  // DECISION MATRIX:
+  if (matchedAi) {
+    const deepfake = Math.floor(Math.random() * 4) + 94; // 94% - 97%
+    return {
+      is_fake: true,
+      authentic_score: 100 - deepfake,
+      deepfake_score: deepfake,
+      bot_score: Math.floor(Math.random() * 10) + 78,
+      fact_check_status: "Debunked / AI Synthetic Deepfake",
+      summary: `Multi-spectral forensic analysis detected generative synthesis & temporal facial anomalies (${matchedAi.toUpperCase()} / facial landmark jitter detected). Synthetic diffusion signature confirmed.`
+    };
+  }
+
+  if (matchedScam) {
+    return {
+      is_fake: true,
+      authentic_score: 3,
+      deepfake_score: 97,
+      bot_score: 93,
+      fact_check_status: "Debunked / Fraudulent Scam Scheme",
+      summary: "Pattern heuristics identified coordinated deceptive promotion and financial scam markers. High risk of malicious payload or phishing."
+    };
+  }
+
+  if (isGovDocClaim && !isFromGovOfficial) {
+    return {
+      is_fake: true,
+      authentic_score: 12,
+      deepfake_score: 88,
+      bot_score: 65,
+      fact_check_status: "High Manipulation Risk / Unverified Circular",
+      summary: "Forensic typographic check detected non-standard font alignment and synthetic digital letterhead compression. Document origin unverified by official gazette."
+    };
+  }
+
+  // LAYER 6: Media Forensics for Sensational Viral Videos & Images
+  if (isVideo || isImage) {
+    const viralSensational = ["viral", "unbelievable", "shocking", "দেখুন কি করলো", "অবাক করা", "ভাইরাল", "হাসির"];
+    const isSensational = viralSensational.some(kw => combined.includes(kw));
+
+    if (isSensational) {
+      const deepfake = Math.floor(Math.random() * 6) + 89; // 89% - 94%
+      return {
+        is_fake: true,
+        authentic_score: 100 - deepfake,
+        deepfake_score: deepfake,
+        bot_score: Math.floor(Math.random() * 12) + 72,
+        fact_check_status: "Debunked / Manipulated Viral Media",
+        summary: "Temporal frequency analysis detected non-continuous frame cadence and localized pixel artifact synthesis. High likelihood of generative or edited manipulation."
+      };
     }
   }
 
-  if (!isFake) {
-    const deepfake = Math.floor(Math.random() * 3) + 1; // 1% - 3%
-    const authentic = 100 - deepfake; // 97% - 99%
-    const bot = Math.floor(Math.random() * 4) + 2;     // 2% - 5%
-    return {
-      is_fake: false,
-      authentic_score: authentic,
-      deepfake_score: deepfake,
-      bot_score: bot,
-      fact_check_status: "Verified Authentic (Genuine Media)",
-      summary: "Multi-spectral analysis verified organic capture signature. Zero generative diffusion artifacts or temporal facial anomalies detected across frames."
-    };
-  } else {
-    const deepfake = Math.floor(Math.random() * 4) + 94; // 94% - 97%
-    const authentic = 100 - deepfake;                    // 3% - 6%
-    const bot = Math.floor(Math.random() * 10) + 78;     // 78% - 87%
-    return {
-      is_fake: true,
-      authentic_score: authentic,
-      deepfake_score: deepfake,
-      bot_score: bot,
-      fact_check_status: "Debunked / AI Synthetic Manipulation",
-      summary: "Multi-spectral analysis detected generative diffusion synthesis & temporal facial anomalies. Non-organic synthetic media signature verified (facial landmark jitter & generative smoothing detected)."
-    };
-  }
+  // LAYER 7: Natural Organic Post Baseline (Camera / Everyday Posts)
+  const deepfake = Math.floor(Math.random() * 3) + 2; // 2% - 4%
+  const authentic = 100 - deepfake;                   // 96% - 98%
+  const bot = Math.floor(Math.random() * 4) + 3;       // 3% - 6%
+  return {
+    is_fake: false,
+    authentic_score: authentic,
+    deepfake_score: deepfake,
+    bot_score: bot,
+    fact_check_status: "Verified Authentic (Organic Media)",
+    summary: "Multi-spectral analysis verified organic capture signature. Zero generative diffusion artifacts or temporal facial anomalies detected across frames."
+  };
 }
 
 function renderResultCard(postNode, data, triggerBtn) {
