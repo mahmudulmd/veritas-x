@@ -416,157 +416,83 @@ function isCommentElement(el) {
   return false;
 }
 
-// Find every post's Share button directly
-function findFacebookShareButtons() {
-  const shareButtons = [];
-  const seenTargets = new Set();
-
-  // Find all posts on the page
-  const posts = [];
-  document.querySelectorAll('div[role="article"], div[data-pagelet*="FeedUnit"]').forEach(p => {
-    if (!isCommentElement(p)) posts.push(p);
-  });
-
-  // If role="article" or data-pagelet didn't catch all, look inside role="feed"
-  document.querySelectorAll('div[role="feed"]').forEach(feed => {
-    Array.from(feed.children).forEach(child => {
-      if (!posts.includes(child) && !isCommentElement(child)) {
-        if (child.querySelector('div[role="button"], span[role="button"]')) {
-          posts.push(child);
-        }
-      }
-    });
-  });
-
-  // Helper to safely register a share button
-  function addShareBtn(btn) {
-    if (!btn || seenTargets.has(btn)) return;
-    if (isCommentElement(btn) || btn.closest('h1, h2, h3, h4, header')) return;
-    // Exclude reaction emoji button (💙😆)
-    if (btn.querySelector('img[src*="emoji"], span[style*="background-image"], img[alt="Like"], img[alt="Love"], img[alt="Haha"]')) return;
-    const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
-    if (aria.includes("reacted") || aria.includes("reaction") || aria.includes("প্রতিক্রিয়া দেখুন") || aria.includes("সব প্রতিক্রিয়া")) return;
-
-    seenTargets.add(btn);
-    shareButtons.push(btn);
-  }
-
-  // PASS 1: Locate Share button per post
-  posts.forEach(post => {
-    let postShareBtn = null;
-
-    // Strategy 1A: Explicit aria-label containing Share / Send this in this post
-    const explicitShare = post.querySelector(
-      '[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i]'
-    );
-    if (explicitShare && !isCommentElement(explicitShare)) {
-      const btn = explicitShare.closest('div[role="button"], span[role="button"], div[tabindex="0"], button') || explicitShare;
-      if (!btn.closest('h1, h2, h3, h4, header')) {
-        postShareBtn = btn;
-      }
-    }
-
-    // Strategy 1B: Action row inside this post: [Like] [Comment] [Share]
-    if (!postShareBtn) {
-      const rows = Array.from(post.querySelectorAll('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]'))
-        .filter(r => !isCommentElement(r) && !r.closest('ul, ol'));
-
-      for (const row of rows) {
-        if (row.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]):not([height="16"]):not([height="20"])')) continue;
-
-        const actionBtns = Array.from(
-          row.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"], button')
-        ).filter(b => {
-          if (b.classList.contains("veritas-verify-btn") || b.closest(".veritas-verify-btn")) return false;
-          if (isCommentElement(b)) return false;
-          // Must not be reaction summary emojis (💙😆)
-          if (b.querySelector('img[src*="emoji"], span[style*="background-image"], img[alt="Like"], img[alt="Love"], img[alt="Haha"]')) return false;
-          const a = (b.getAttribute("aria-label") || "").toLowerCase();
-          if (a.includes("reacted") || a.includes("reaction") || a.includes("প্রতিক্রিয়া দেখুন")) return false;
-          // Must contain SVG icon (Like 👍, Comment 💬, Share ↗️)
-          return !!b.querySelector("svg");
-        });
-
-        // The order on Facebook is ALWAYS: [Like] -> [Comment] -> [Share]
-        // The LAST action button in this action bar is ALWAYS the Share button!
-        if (actionBtns.length >= 1 && actionBtns.length <= 4) {
-          postShareBtn = actionBtns[actionBtns.length - 1];
-          break;
-        }
-      }
-    }
-
-    if (postShareBtn) {
-      addShareBtn(postShareBtn);
-    }
-  });
-
-  // PASS 2: Global fallback for any feed posts with action rows
-  const allRows = document.querySelectorAll('div[style*="flex"], div[class*="x1n2onr6"], div[role="toolbar"]');
-  allRows.forEach(row => {
-    if (isCommentElement(row) || row.closest('ul, ol')) return;
-    if (row.querySelector('video, img[src*="fbcdn"]:not([width="16"]):not([width="20"]):not([height="16"]):not([height="20"])')) return;
-
-    const actionBtns = Array.from(
-      row.querySelectorAll('div[role="button"], span[role="button"], div[tabindex="0"], button')
-    ).filter(b => {
-      if (b.classList.contains("veritas-verify-btn") || b.closest(".veritas-verify-btn")) return false;
-      if (isCommentElement(b)) return false;
-      if (b.querySelector('img[src*="emoji"], span[style*="background-image"], img[alt="Like"], img[alt="Love"], img[alt="Haha"]')) return false;
-      const a = (b.getAttribute("aria-label") || "").toLowerCase();
-      if (a.includes("reacted") || a.includes("reaction") || a.includes("প্রতিক্রিয়া দেখুন")) return false;
-      return !!b.querySelector("svg");
-    });
-
-    if (actionBtns.length >= 2 && actionBtns.length <= 4) {
-      const shareBtn = actionBtns[actionBtns.length - 1];
-      addShareBtn(shareBtn);
-    }
-  });
-
-  return shareButtons;
-}
-
 function injectFacebookButtons() {
-  // 1. Remove duplicate buttons in the same container or comments
-  document.querySelectorAll(".veritas-verify-btn").forEach(btn => {
+  // 1. Remove any stray buttons in comments or duplicate siblings
+  document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(b => b.remove());
+  document.querySelectorAll('.veritas-verify-btn').forEach(btn => {
     if (btn.nextElementSibling?.classList.contains("veritas-verify-btn")) {
       btn.nextElementSibling.remove();
     }
-    if (isCommentElement(btn)) {
-      btn.remove();
+  });
+
+  // 2. Discover all Facebook post action bars (just like Twitter's action bar)
+  const actionTriggers = document.querySelectorAll(
+    '[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i], ' +
+    '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], ' +
+    '[aria-label*="Like" i], [aria-label*="React" i], [aria-label*="লাইক" i]'
+  );
+
+  const seenActionBars = new Set();
+
+  actionTriggers.forEach(el => {
+    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
+
+    const btnEl = el.closest('div[role="button"], span[role="button"], div[tabindex="0"], button') || el;
+    if (!btnEl) return;
+
+    // Climb up to find the action toolbar container that holds the post's action buttons
+    let bar = btnEl.parentElement;
+    let depth = 0;
+    while (bar && bar !== document.body && depth < 5) {
+      const svgs = bar.querySelectorAll('svg');
+      if (svgs.length >= 2) {
+        break;
+      }
+      bar = bar.parentElement;
+      depth++;
+    }
+
+    if (!bar || bar === document.body || seenActionBars.has(bar)) return;
+    seenActionBars.add(bar);
+
+    // If this action bar already has our Veritas button, skip!
+    if (bar.querySelector('.veritas-verify-btn')) return;
+
+    // Check direct child elements of the action bar
+    const children = Array.from(bar.children).filter(c => !isCommentElement(c));
+    if (children.length === 0) return;
+
+    // Check if the last child is the reaction emoji summary (💙😆 19.3K)
+    const lastChild = children[children.length - 1];
+    const isReactionSummary = !!(
+      lastChild.querySelector('img[src*="emoji"], span[style*="background-image"], img[alt="Like"], img[alt="Love"], img[alt="Haha"]') ||
+      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("reacted") ||
+      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("reaction") ||
+      (lastChild.getAttribute("aria-label") || "").toLowerCase().includes("প্রতিক্রিয়া")
+    );
+
+    const post = findPostContainerForButton(bar) || bar;
+    const veritasBtn = createVerifyButton(post);
+
+    if (isReactionSummary && children.length > 1) {
+      // Place right before reaction summary -> immediately to the right of the Share button!
+      lastChild.insertAdjacentElement("beforebegin", veritasBtn);
+    } else {
+      // Append at the end of the action bar (just like Twitter!)
+      bar.appendChild(veritasBtn);
     }
   });
 
-  // 2. Discover every post's Share button
-  const shareButtons = findFacebookShareButtons();
-
-  shareButtons.forEach(shareBtn => {
-    // If our button is already right next to this share button, skip!
-    if (
-      shareBtn.nextElementSibling?.classList.contains("veritas-verify-btn") ||
-      shareBtn.parentElement?.querySelector(":scope > .veritas-verify-btn")
-    ) {
-      return;
+  // 3. Fallback for role="toolbar" containers
+  document.querySelectorAll('div[role="toolbar"]').forEach(bar => {
+    if (isCommentElement(bar) || bar.querySelector('.veritas-verify-btn') || seenActionBars.has(bar)) return;
+    const svgs = bar.querySelectorAll('svg');
+    if (svgs.length >= 2) {
+      seenActionBars.add(bar);
+      const post = findPostContainerForButton(bar) || bar;
+      const veritasBtn = createVerifyButton(post);
+      bar.appendChild(veritasBtn);
     }
-
-    const post = findPostContainerForButton(shareBtn) || shareBtn.parentElement;
-    const btn = createVerifyButton(post);
-
-    // If shareBtn has an outer wrapper in a flex container of buttons, insert after that wrapper
-    let target = shareBtn;
-    if (
-      shareBtn.parentElement &&
-      shareBtn.parentElement.parentElement &&
-      shareBtn.parentElement.parentElement.children.length >= 2 &&
-      shareBtn.parentElement.children.length === 1 &&
-      !shareBtn.parentElement.classList.contains("veritas-verify-btn")
-    ) {
-      target = shareBtn.parentElement;
-    }
-
-    // INJECT IMMEDIATELY TO THE RIGHT OF THE SHARE BUTTON!
-    target.insertAdjacentElement("afterend", btn);
   });
 }
 
