@@ -23,21 +23,22 @@ function createVerifyButton(postNode) {
   btn.setAttribute("title", "Veritas Universal AI Verification");
   btn.setAttribute("aria-label", "Veritas Verify");
   btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
-  
+
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     e.preventDefault();
 
     const post = findPostContainerForButton(btn) || postNode;
+    const currentPostId = post.id || (post.innerText ? post.innerText.slice(0, 30) : post.className || "veritas-post");
 
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
-    if (existingCard && existingCard.dataset.currentPostId === (post.id || post.innerText.slice(0, 30)) && existingCard.style.display !== "none") {
-      existingCard.style.display = "none";
+    if (existingCard && existingCard.dataset.currentPostId === currentPostId && existingCard.style.display !== "none" && existingCard.parentElement) {
+      existingCard.remove();
       btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
       return;
     }
-    
+
     const postData = extractPostData(post);
     const postKey = ((postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 100)).trim();
 
@@ -50,7 +51,7 @@ function createVerifyButton(postNode) {
 
     // 2. Single-Pass High Confidence Verification
     btn.innerHTML = `<span class="veritas-spinner"></span>`;
-    
+
     setTimeout(() => {
       try {
         const edgeRes = simulateVerification(postData);
@@ -135,7 +136,7 @@ function findPostContainerForButton(btn) {
 function getCleanPostText(node) {
   if (!node) return "";
   let fullText = "";
-  
+
   // Use TreeWalker on the live attached DOM to safely collect all text while strictly excluding Veritas UI elements
   try {
     const walker = document.createTreeWalker(
@@ -222,7 +223,7 @@ function extractPostData(postNode) {
     // 3. Media Detection
     const vid = postNode.querySelector("video");
     const imgs = Array.from(postNode.querySelectorAll('img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"] img, img:not([width="16"]):not([width="20"]):not([width="24"])'));
-    
+
     if (vid) {
       mediaType = "video";
       mediaUrl = vid.src || vid.currentSrc;
@@ -276,7 +277,7 @@ function extractPostData(postNode) {
     // Twitter / X native extraction
     const allTextElements = Array.from(postNode.querySelectorAll('[data-testid="tweetText"]'));
     tweetText = allTextElements.map(el => el.textContent).join(" ");
-    
+
     const userElement = postNode.querySelector('[data-testid="User-Name"]');
     fullUserHeader = userElement ? userElement.textContent : "";
     userHandle = userElement ? (userElement.textContent.split("\n").find(s => s.startsWith("@")) || "") : "";
@@ -340,12 +341,12 @@ function simulateVerification(data) {
   // LAYER 2: Certified Authentic News & Official Broadcast Sources
   const authenticNewsSources = [
     "reuters", "bloomberg", "associated press", "bbc", "cnn", "al jazeera",
-    "prothom alo", "প্রথম আলো", "the daily star", "somoy tv", "সময় টিভি", 
+    "prothom alo", "প্রথম আলো", "the daily star", "somoy tv", "সময় টিভি",
     "jamuna tv", "যমুনা টিভি", "channel 24", "চ্যানেল ২৪", "independent television",
     "bdnews24", "dhaka tribune", "কালবেলা", "সমকাল", "ইত্তেফাক", "যুগান্তর"
   ];
   const isVerifiedNews = authenticNewsSources.some(src => handle.includes(src) || header.includes(src) || text.includes(src));
-  
+
   if (isVerifiedNews) {
     const deepfake = Math.floor(Math.random() * 3) + 1; // 1% - 3%
     return {
@@ -571,7 +572,7 @@ function renderResultCard(postNode, data, triggerBtn) {
   card.dataset.currentPostId = postNode.id || postNode.innerText.slice(0, 30);
 
   card.className = "veritas-card veritas-result-card";
-  
+
   // Compact, modern, 100% responsive styling (Mobile, Laptop, Desktop, Reels)
   card.style.cssText = `
     display: block !important;
@@ -699,14 +700,23 @@ function renderResultCard(postNode, data, triggerBtn) {
       post.appendChild(card);
     }
   } else if (platform === "tiktok") {
-    // TikTok in-place insertion
-    const feedItem = triggerBtn.closest('div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivContentContainer"], div[class*="DivVideoWrapper"], div[class*="DivItemContainer"], article') || postNode;
-    const desc = feedItem.querySelector('[data-e2e="video-desc"]')?.parentElement || feedItem.querySelector('div[class*="DivInfoContainer"]') || feedItem;
-    if (desc && desc !== feedItem) {
-      desc.insertAdjacentElement("afterend", card);
-    } else {
-      feedItem.appendChild(card);
+    // TikTok in-place floating card overlay directly under the verification button
+    const vidWrapper = triggerBtn.closest('div[class*="DivVideoWrapper"], div[class*="DivVideo"], div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"]') || triggerBtn.parentElement || postNode;
+
+    if (vidWrapper && getComputedStyle(vidWrapper).position === "static") {
+      vidWrapper.style.position = "relative";
     }
+
+    card.style.setProperty("position", "absolute", "important");
+    card.style.setProperty("top", "58px", "important");
+    card.style.setProperty("right", "16px", "important");
+    card.style.setProperty("left", "auto", "important");
+    card.style.setProperty("width", "calc(100% - 32px)", "important");
+    card.style.setProperty("max-width", "420px", "important");
+    card.style.setProperty("z-index", "999999", "important");
+    card.style.setProperty("margin", "0", "important");
+
+    vidWrapper.appendChild(card);
   } else {
     // Facebook in-place insertion directly below the clicked post's action bar
     let inserted = false;
@@ -886,9 +896,10 @@ function injectTikTokButtons() {
         color: #1d9bf0 !important;
         backdrop-filter: blur(8px) !important;
         cursor: pointer !important;
+        pointer-events: auto !important;
         margin: 0 8px 0 0 !important;
         padding: 0 !important;
-        z-index: 100 !important;
+        z-index: 99999 !important;
         vertical-align: middle !important;
       `;
       return;
@@ -914,7 +925,8 @@ function injectTikTokButtons() {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
         backdrop-filter: blur(8px) !important;
         cursor: pointer !important;
-        z-index: 9999 !important;
+        pointer-events: auto !important;
+        z-index: 99999 !important;
       `;
       vidWrapper.appendChild(btn);
     }
