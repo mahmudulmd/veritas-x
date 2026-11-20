@@ -938,10 +938,48 @@ function isCommentElement(el) {
   return false;
 }
 
+function isAuthorHeaderOrProfileRow(el) {
+  if (!el) return false;
+
+  // 1. If el or any parent is/contains a Follow button or author link
+  if (el.closest('[aria-label*="Follow" i], [aria-label*="অনুসরণ" i], div[role="button"]:has(span)')?.textContent?.includes("Follow")) {
+    return true;
+  }
+
+  // 2. Climb up to check if this row contains author/profile indicators
+  let p = el;
+  for (let i = 0; i < 4 && p && p !== document.body; i++) {
+    const text = (p.innerText || "").toLowerCase();
+    const aria = (p.getAttribute("aria-label") || "").toLowerCase();
+
+    // Check for author/creator/follow signature
+    if (
+      p.querySelector('[aria-label*="Follow" i], [aria-label*="অনুসরণ" i], a[href*="/user/"]') ||
+      text.includes("follow") ||
+      text.includes("অনুসরণ") ||
+      text.includes("original audio") ||
+      aria.includes("follow") ||
+      aria.includes("profile") ||
+      aria.includes("verified") ||
+      aria.includes("original audio")
+    ) {
+      // Ensure we don't accidentally match the true post action bar (which has Like AND Comment)
+      const isActualActionBar = p.querySelector('[aria-label*="Like" i], [aria-label*="পছন্দ" i]') &&
+        p.querySelector('[aria-label*="Comment" i], [aria-label*="মন্তব্য" i]');
+      if (!isActualActionBar) {
+        return true;
+      }
+    }
+    p = p.parentElement;
+  }
+
+  return false;
+}
+
 function injectFacebookButtons() {
-  // 1. Remove all stray buttons in comments or comments side-panel
+  // 1. Remove all stray buttons in comments, comment panels, or author headers
   document.querySelectorAll('.veritas-verify-btn').forEach(b => {
-    if (isCommentElement(b)) {
+    if (isCommentElement(b) || isAuthorHeaderOrProfileRow(b)) {
       b.remove();
     }
   });
@@ -954,7 +992,7 @@ function injectFacebookButtons() {
   );
 
   shareElements.forEach(el => {
-    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
+    if (isCommentElement(el) || isAuthorHeaderOrProfileRow(el) || el.closest('header, nav, [role="navigation"]')) return;
 
     const shareBtn = el.closest('div[role="button"], span[role="button"], button') || el;
     if (!shareBtn || !shareBtn.parentElement) return;
@@ -973,9 +1011,12 @@ function injectFacebookButtons() {
 
     const row = target.parentElement;
     if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
-    processedRows.add(row);
 
     const post = findPostContainerForButton(target) || target;
+    // Strictly at most ONE Veritas button per post or reel
+    if (post && post.querySelector && post.querySelector('.veritas-verify-btn')) return;
+
+    processedRows.add(row);
     const veritasBtn = createVerifyButton(post);
 
     // INSERT DIRECTLY AFTER THE SHARE BUTTON!
@@ -988,7 +1029,7 @@ function injectFacebookButtons() {
   );
 
   commentElements.forEach(el => {
-    if (isCommentElement(el) || el.closest('header, nav, [role="navigation"]')) return;
+    if (isCommentElement(el) || isAuthorHeaderOrProfileRow(el) || el.closest('header, nav, [role="navigation"]')) return;
 
     const commentBtn = el.closest('div[role="button"], span[role="button"], button') || el;
     if (!commentBtn || !commentBtn.parentElement) return;
@@ -1011,18 +1052,26 @@ function injectFacebookButtons() {
     if (shareSibling && !shareSibling.classList.contains("veritas-verify-btn")) {
       // Ensure it's not a reaction emoji
       if (!shareSibling.querySelector('img[src*="emoji"], span[style*="background-image"]')) {
-        processedRows.add(row);
         const post = findPostContainerForButton(shareSibling) || shareSibling;
+        // Strictly at most ONE Veritas button per post or reel
+        if (post && post.querySelector && post.querySelector('.veritas-verify-btn')) return;
+
+        processedRows.add(row);
         const veritasBtn = createVerifyButton(post);
         shareSibling.insertAdjacentElement("afterend", veritasBtn);
       }
     }
   });
 
-  // 3. Cleanup: If any row got duplicate buttons side by side, remove the duplicate
-  document.querySelectorAll('.veritas-verify-btn').forEach(btn => {
-    if (btn.nextElementSibling?.classList.contains("veritas-verify-btn")) {
-      btn.nextElementSibling.remove();
+  // 3. Cleanup: If any post or reel got more than 1 button, keep only the one in the action bar!
+  document.querySelectorAll('div[data-pagelet*="Reel"], div[role="article"]').forEach(container => {
+    const btns = Array.from(container.querySelectorAll('.veritas-verify-btn'));
+    if (btns.length > 1) {
+      // Keep the one closest to a share/like/comment button, remove others
+      const validBtn = btns.find(b => b.parentElement?.querySelector('[aria-label*="Share" i], [aria-label*="Comment" i], [aria-label*="Like" i]')) || btns[0];
+      btns.forEach(b => {
+        if (b !== validBtn) b.remove();
+      });
     }
   });
 }
