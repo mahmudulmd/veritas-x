@@ -103,16 +103,16 @@ function findPostContainerForButton(btn) {
 
   // On TikTok: strictly target the full feed video container or browse modal
   if (platform === "tiktok") {
-    const feedItem = btn.closest('div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivItemContainer"], div[class*="DivContentContainer"], div[data-e2e="browse-video"], article');
+    const feedItem = btn.closest('div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivItemContainer"], [data-e2e="browse-video"], [class*="DivBrowserModeContainer"], [class*="DivVideoDetailContainer"], article');
     if (feedItem) return feedItem;
     let curr = btn.parentElement;
-    while (curr && curr !== document.body) {
-      if (curr.querySelector('[data-e2e="video-desc"], [data-e2e="video-author-uniqueid"], div[class*="DivText"], [data-e2e="browse-username"]') && curr.querySelector('video')) {
+    while (curr && curr !== document.body && curr !== document.documentElement) {
+      if (curr.querySelector('video') && (curr.querySelector('[data-e2e="video-desc"], [data-e2e="video-author-uniqueid"], div[class*="DivText"], [data-e2e="browse-username"], div[class*="DivContentContainer"], h1, h3') || curr.querySelector('a[href*="/@"]'))) {
         return curr;
       }
       curr = curr.parentElement;
     }
-    return btn.closest('div[data-e2e="browse-video"]') || btn.parentElement;
+    return btn.closest('div[class*="DivVideoWrapper"]') || btn.parentElement;
   }
 
   // On Facebook:
@@ -272,31 +272,56 @@ function extractPostData(postNode) {
       .filter(Boolean);
     mediaLabels = alts.join(" ");
   } else if (platform === "tiktok") {
+    // Determine if we are in single-video modal / theatre / URL watch view
+    const isSingleVideoView = window.location.pathname.includes("/video/") ||
+      !!document.querySelector('[data-e2e="browse-video"], [class*="DivBrowserModeContainer"]');
+
+    // Find the broader video card container if postNode is just the inner video wrapper
+    let containerToScan = postNode;
+    let curr = postNode;
+    for (let i = 0; i < 5 && curr && curr !== document.body; i++) {
+      const txt = (curr.innerText || "").toLowerCase();
+      if (
+        txt.includes("contains ai-generated media") ||
+        txt.includes("contains ai-generated") ||
+        txt.includes("creator labeled as ai") ||
+        txt.includes("ai-generated media")
+      ) {
+        containerToScan = curr;
+        break;
+      }
+      if (curr.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"], div[class*="DivText"], h1')) {
+        containerToScan = curr;
+      }
+      curr = curr.parentElement;
+    }
+
     // 1. Live clean text extraction (TreeWalker)
-    tweetText = getCleanPostText(postNode);
+    tweetText = getCleanPostText(containerToScan);
 
     // 2. Author / Creator Handle
-    const userEl = postNode.querySelector(
+    const userEl = containerToScan.querySelector(
       '[data-e2e="video-author-uniqueid"], a[data-e2e="video-author-avatar"], h3[data-e2e="video-author-uniqueid"], span[data-e2e="video-author-uniqueid"], [data-e2e="browse-username"], a[href*="/@"]'
-    );
+    ) || (isSingleVideoView ? document.querySelector('[data-e2e="browse-username"], [data-e2e="video-author-uniqueid"], a[href*="/@"]') : null);
     userHandle = userEl ? userEl.textContent.trim().replace(/^@/, "") : "";
     if (userHandle && !userHandle.startsWith("@")) userHandle = "@" + userHandle;
     fullUserHeader = userHandle;
 
     // 3. Caption / Hashtags & Music / Sound
-    const descEl = postNode.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"], div[class*="DivText"], h1, [class*="video-desc"]');
-    const musicEl = postNode.querySelector('[data-e2e="video-music"], a[href*="/music/"]');
+    const descEl = containerToScan.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"], div[class*="DivText"], h1, [class*="video-desc"]') ||
+      (isSingleVideoView ? document.querySelector('[data-e2e="browse-video-desc"], [data-e2e="video-desc"], h1') : null);
+    const musicEl = containerToScan.querySelector('[data-e2e="video-music"], a[href*="/music/"]');
     const descText = descEl ? descEl.textContent : "";
     const musicText = musicEl ? musicEl.textContent : "";
     tweetText = (descText + " " + musicText + " " + tweetText).slice(0, 1500).trim();
 
     // 4. Media Detection
     mediaType = "video";
-    const vid = postNode.querySelector("video");
+    const vid = containerToScan.querySelector("video") || postNode.querySelector("video");
     mediaUrl = vid ? (vid.src || vid.currentSrc) : null;
 
     // 5. TikTok Official AI Badge Check (strictly on the current video's badge pill, link or text)
-    const hasBadgeElement = Array.from(postNode.querySelectorAll('a, button, div, span, p')).some(el => {
+    const hasBadgeElement = Array.from(containerToScan.querySelectorAll('a, button, div, span, p')).some(el => {
       if (el.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card')) return false;
       const directText = (el.textContent || "").trim().toLowerCase();
       const href = (el.getAttribute("href") || "").toLowerCase();
@@ -313,18 +338,28 @@ function extractPostData(postNode) {
       );
     });
 
-    const cleanLowerText = (postNode.innerText || "").toLowerCase();
+    const cleanLowerText = (containerToScan.innerText || "").toLowerCase();
     const hasBadgeText = cleanLowerText.includes("contains ai-generated media") ||
       cleanLowerText.includes("creator labeled as ai");
 
-    const hasTikTokAiBadge = hasBadgeElement || hasBadgeText;
+    // Also check document-level badge if in theatre / modal / /video/ view where only 1 video exists
+    const hasDocumentBadge = isSingleVideoView && (
+      (document.body.innerText || "").toLowerCase().includes("contains ai-generated media") ||
+      Array.from(document.querySelectorAll('a, button, div, span')).some(el => {
+        if (el.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card')) return false;
+        const dt = (el.textContent || "").trim().toLowerCase();
+        return dt === "contains ai-generated media" || dt === "creator labeled as ai";
+      })
+    );
+
+    const hasTikTokAiBadge = hasBadgeElement || hasBadgeText || hasDocumentBadge;
 
     if (hasTikTokAiBadge) {
       tweetText += " [TIKTOK_OFFICIAL_AI_BADGE_DETECTED: Contains AI-generated media]";
     }
 
     // 6. Accessibility & Vision Labels
-    const alts = Array.from(postNode.querySelectorAll('img[alt], video[aria-label]'))
+    const alts = Array.from(containerToScan.querySelectorAll('img[alt], video[aria-label]'))
       .filter(el => !el.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card'))
       .map(el => (el.getAttribute("alt") || el.getAttribute("aria-label") || ""))
       .filter(Boolean);
