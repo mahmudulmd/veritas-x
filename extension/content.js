@@ -845,28 +845,58 @@ function renderResultCard(postNode, data, triggerBtn) {
 
     mainContainer.appendChild(card);
   } else {
-    // Facebook in-place insertion directly below the clicked post's action bar
-    let inserted = false;
-    if (triggerBtn) {
-      let target = triggerBtn;
-      let p = triggerBtn.parentElement;
+    // Facebook Handler: Check if on a Reel or a regular Feed post
+    const isReel = window.location.href.includes("/reel/") ||
+      !!triggerBtn?.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
 
-      while (p && p.parentElement && p.parentElement !== document.body && p.parentElement.getAttribute("role") !== "feed") {
-        if (p.parentElement.querySelector('video, img[src*="fbcdn"], div[dir="auto"], [data-ad-preview="message"]')) {
-          target = p;
-          break;
+    if (isReel && triggerBtn) {
+      // FACEBOOK REELS FLOATING CARD OVERLAY (Guaranteed Never Clipped / Never Tucked Under Comments)
+      const btnRect = triggerBtn.getBoundingClientRect();
+      const cardWidth = Math.min(420, window.innerWidth - 64);
+
+      // Position anchored safely to the left of the vertical action rail
+      const rightDistance = Math.max(16, window.innerWidth - btnRect.left + 16);
+      const topPos = Math.max(20, Math.min(window.innerHeight - 480, btnRect.top - 200));
+
+      card.style.setProperty("position", "fixed", "important");
+      card.style.setProperty("top", `${topPos}px`, "important");
+      card.style.setProperty("right", `${rightDistance}px`, "important");
+      card.style.setProperty("left", "auto", "important");
+      card.style.setProperty("width", `${cardWidth}px`, "important");
+      card.style.setProperty("max-width", "420px", "important");
+      card.style.setProperty("height", "fit-content", "important");
+      card.style.setProperty("min-height", "0", "important");
+      card.style.setProperty("max-height", "85vh", "important");
+      card.style.setProperty("box-sizing", "border-box", "important");
+      card.style.setProperty("z-index", "99999999", "important");
+      card.style.setProperty("box-shadow", "0 12px 36px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12)", "important");
+      card.style.setProperty("margin", "0", "important");
+
+      document.body.appendChild(card);
+    } else {
+      // Standard Facebook Feed post insertion directly below the action bar
+      let inserted = false;
+      if (triggerBtn) {
+        let target = triggerBtn;
+        let p = triggerBtn.parentElement;
+
+        while (p && p.parentElement && p.parentElement !== document.body && p.parentElement.getAttribute("role") !== "feed") {
+          if (p.parentElement.querySelector('video, img[src*="fbcdn"], div[dir="auto"], [data-ad-preview="message"]')) {
+            target = p;
+            break;
+          }
+          p = p.parentElement;
         }
-        p = p.parentElement;
+
+        if (target && target.parentElement) {
+          target.insertAdjacentElement("afterend", card);
+          inserted = true;
+        }
       }
 
-      if (target && target.parentElement) {
-        target.insertAdjacentElement("afterend", card);
-        inserted = true;
+      if (!inserted && postNode) {
+        postNode.appendChild(card);
       }
-    }
-
-    if (!inserted && postNode) {
-      postNode.appendChild(card);
     }
   }
 
