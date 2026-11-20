@@ -440,10 +440,17 @@ function simulateVerification(data) {
 
   // LAYER 2: Certified Authentic News & Official Broadcast Sources
   const authenticNewsSources = [
-    "reuters", "bloomberg", "associated press", "bbc", "cnn", "al jazeera",
+    // Global & US/UK News Media
+    "fox news", "foxnews", "fox", "bbc", "cnn", "reuters", "bloomberg", "associated press", "ap news", "apnews",
+    "al jazeera", "aljazeera", "the guardian", "nbc", "nbc news", "abc news", "cbs news", "cbs",
+    "sky news", "skynews", "dw news", "dw", "france 24", "france24", "wsj", "wall street journal",
+    "new york times", "nytimes", "washington post", "wapo", "financial times", "cnbc", "politico", "axios",
+    "forbes", "time", "usa today", "scmp", "nhk", "hindustan times", "ndtv", "times of india",
+    // Bangladesh News Media
     "prothom alo", "প্রথম আলো", "the daily star", "somoy tv", "সময় টিভি",
-    "jamuna tv", "যমুনা টিভি", "channel 24", "চ্যানেল ২৪", "independent television",
-    "bdnews24", "dhaka tribune", "কালবেলা", "সমকাল", "ইত্তেফাক", "যুগান্তর"
+    "jamuna tv", "যমুনা টিভি", "channel 24", "চ্যানেল ২৪", "independent television", "independent tv", "ইন্ডিপেন্ডেন্ট টিভি",
+    "bdnews24", "dhaka tribune", "কালবেলা", "সমকাল", "ইত্তেফাক", "যুগান্তর", "মানবজমিন", "banglanews24",
+    "dbc news", "ডিবিসি নিউজ", "ekattor tv", "একাত্তর টিভি", "rtv", "ntv", "boishakhi tv", "banglavision", "channel i", "চ্যানেল আই"
   ];
   const isVerifiedNews = authenticNewsSources.some(src => handle.includes(src) || header.includes(src) || text.includes(src));
 
@@ -589,7 +596,20 @@ function simulateVerification(data) {
     "এআই নয়", "এআই না", "এটা এআই না", "এটা এআই নয়", "এআই দিয়ে তৈরি না"
   ];
   const hasAiNegation = negationPhrases.some(p => text.includes(p));
-  const isActualAiMatch = matchedAi && !(hasAiNegation && (matchedAi === "ai" || matchedAi === "এআই" || matchedAi === "artificial intelligence"));
+
+  // Topic context filter: If text is discussing AI as a technology/policy topic (e.g. AI safety, AI policy, AI guardrails, AI regulation)
+  const aiTopicPhrases = [
+    "ai safety", "ai guardrail", "ai guardrails", "ai regulation", "ai policy", "ai bill", "ai act",
+    "ai governance", "ai chip", "ai chips", "ai race", "ai market", "ai summit", "ai conference",
+    "ai dominance", "ai law", "ai ethics", "ai research", "ai model", "ai models",
+    "ai investment", "ai threat", "ai development", "ai startup", "artificial intelligence safety",
+    "এআই নীতি", "এআই আইন", "এআই প্রযুক্তি", "এআই সুরক্ষা", "কৃত্রিম বুদ্ধিমত্তা নীতি"
+  ];
+  const isAiTopicDiscussion = aiTopicPhrases.some(phrase => combined.includes(phrase));
+
+  const isActualAiMatch = matchedAi && 
+    !(hasAiNegation && (matchedAi === "ai" || matchedAi === "এআই" || matchedAi === "artificial intelligence")) &&
+    !(isAiTopicDiscussion && (matchedAi === "ai" || matchedAi === "এআই" || matchedAi === "artificial intelligence"));
 
   // Synthetic Creature / CGI VFX Anomaly Check:
   const syntheticCreatures = [
