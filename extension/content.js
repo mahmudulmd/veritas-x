@@ -940,10 +940,18 @@ function isCommentElement(el) {
 
 function isReelAuthorHeader(el) {
   if (!el) return false;
-  // If inside a reel container or reel page
-  const reel = el.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
-  const isReel = window.location.href.includes("/reel/") || !!reel;
-  if (!isReel) return false;
+  // If on a reel URL or inside a reel container
+  const isReel = window.location.href.includes("/reel/") ||
+    !!el.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
+
+  if (isReel) {
+    const r = el.getBoundingClientRect();
+    // On Facebook Reels, the action rail (Like/Comment/Share/3-dots) is strictly on the right (x >= 45% of screen width).
+    // The entire left half (x < 45%) is the video, caption, creator name, and Follow button -> strictly block & purge!
+    if (r.left > 0 && r.left < window.innerWidth * 0.45) {
+      return true;
+    }
+  }
 
   // Check if near Follow button, creator name, or audio link
   let p = el;
@@ -961,20 +969,11 @@ function isReelAuthorHeader(el) {
     p = p.parentElement;
   }
 
-  // Also check if on the left half of the reel
-  if (reel) {
-    const r = el.getBoundingClientRect();
-    const rr = reel.getBoundingClientRect();
-    if (r.left > 0 && rr.width > 0 && r.left < rr.left + (rr.width * 0.55)) {
-      return true;
-    }
-  }
-
   return false;
 }
 
 function injectFacebookButtons() {
-  // 1. Remove all stray buttons in comments or reel author headers
+  // 1. Remove all stray buttons in comments or reel author headers on the left
   document.querySelectorAll('.veritas-verify-btn').forEach(b => {
     if (isCommentElement(b) || isReelAuthorHeader(b)) {
       b.remove();
@@ -1010,10 +1009,29 @@ function injectFacebookButtons() {
     if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
     processedRows.add(row);
 
+    const isReel = window.location.href.includes("/reel/") ||
+      !!target.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
+
+    // On Reels: position the button DIRECTLY BELOW THE 3-DOTS BUTTON (not between Share and 3-dots)
+    if (isReel) {
+      let nextBtn = target.nextElementSibling;
+      while (nextBtn && nextBtn.classList.contains("veritas-verify-btn")) {
+        nextBtn = nextBtn.nextElementSibling;
+      }
+      // If there is a next sibling (the 3-dots button), target the 3-dots button instead!
+      if (nextBtn) {
+        target = nextBtn;
+      }
+    }
+
     const post = findPostContainerForButton(target) || target;
     const veritasBtn = createVerifyButton(post);
 
-    // INSERT DIRECTLY AFTER THE SHARE BUTTON!
+    if (isReel) {
+      veritasBtn.style.marginTop = "12px";
+    }
+
+    // INSERT DIRECTLY AFTER THE TARGET (below 3-dots on Reels, after Share on feed posts)!
     target.insertAdjacentElement("afterend", veritasBtn);
   });
 
@@ -1046,10 +1064,31 @@ function injectFacebookButtons() {
     if (shareSibling && !shareSibling.classList.contains("veritas-verify-btn")) {
       // Ensure it's not a reaction emoji
       if (!shareSibling.querySelector('img[src*="emoji"], span[style*="background-image"]')) {
+        let finalTarget = shareSibling;
+
+        const isReel = window.location.href.includes("/reel/") ||
+          !!finalTarget.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
+
+        // On Reels: position below the 3-dots button
+        if (isReel) {
+          let nextBtn = finalTarget.nextElementSibling;
+          while (nextBtn && nextBtn.classList.contains("veritas-verify-btn")) {
+            nextBtn = nextBtn.nextElementSibling;
+          }
+          if (nextBtn) {
+            finalTarget = nextBtn;
+          }
+        }
+
         processedRows.add(row);
-        const post = findPostContainerForButton(shareSibling) || shareSibling;
+        const post = findPostContainerForButton(finalTarget) || finalTarget;
         const veritasBtn = createVerifyButton(post);
-        shareSibling.insertAdjacentElement("afterend", veritasBtn);
+
+        if (isReel) {
+          veritasBtn.style.marginTop = "12px";
+        }
+
+        finalTarget.insertAdjacentElement("afterend", veritasBtn);
       }
     }
   });
