@@ -1061,7 +1061,6 @@ function injectFacebookButtons() {
     }
   });
 }
-}
 
 function injectTikTokButtons() {
   // TikTok Web Feed & Video Items
