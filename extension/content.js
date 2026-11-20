@@ -804,22 +804,46 @@ function renderResultCard(postNode, data, triggerBtn) {
     }
   } else if (platform === "tiktok") {
     // TikTok in-place floating card overlay directly under the verification button
-    const vidWrapper = triggerBtn.closest('div[class*="DivVideoWrapper"], div[class*="DivVideo"], div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"]') || triggerBtn.parentElement || postNode;
+    // 1. Target the main video player, carousel/photo container, or full feed item (NEVER a narrow 30px-40px button column)
+    let mainContainer = triggerBtn.closest(
+      'div[class*="DivVideoWrapper"], div[class*="DivVideo"], div[class*="DivPhotoContainer"], div[class*="DivSlideContainer"], div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivItemContainer"], [data-e2e="browse-video"], [class*="DivBrowserModeContainer"], [class*="DivVideoDetailContainer"], article'
+    );
 
-    if (vidWrapper && getComputedStyle(vidWrapper).position === "static") {
-      vidWrapper.style.position = "relative";
+    // 2. Ensure container is wide enough to host the card (at least 320px)
+    if (!mainContainer || mainContainer.offsetWidth < 320) {
+      let p = triggerBtn.parentElement;
+      while (p && p !== document.body) {
+        if (p.offsetWidth >= 320 && (p.querySelector('video, img') || p.getAttribute('data-e2e') || p.className.includes('Container'))) {
+          mainContainer = p;
+          break;
+        }
+        p = p.parentElement;
+      }
+    }
+
+    if (!mainContainer || mainContainer.offsetWidth < 320) {
+      mainContainer = postNode && postNode.offsetWidth >= 320 ? postNode : (triggerBtn.closest('div[class*="DivItemContainer"]') || document.body);
+    }
+
+    if (mainContainer && mainContainer !== document.body && getComputedStyle(mainContainer).position === "static") {
+      mainContainer.style.position = "relative";
     }
 
     card.style.setProperty("position", "absolute", "important");
     card.style.setProperty("top", "58px", "important");
     card.style.setProperty("right", "16px", "important");
     card.style.setProperty("left", "auto", "important");
-    card.style.setProperty("width", "calc(100% - 32px)", "important");
-    card.style.setProperty("max-width", "420px", "important");
+    card.style.setProperty("width", "380px", "important");
+    card.style.setProperty("min-width", "300px", "important");
+    card.style.setProperty("max-width", "calc(100% - 32px)", "important");
+    card.style.setProperty("height", "fit-content", "important");
+    card.style.setProperty("min-height", "0", "important");
+    card.style.setProperty("max-height", "85vh", "important");
+    card.style.setProperty("box-sizing", "border-box", "important");
     card.style.setProperty("z-index", "999999", "important");
     card.style.setProperty("margin", "0", "important");
 
-    vidWrapper.appendChild(card);
+    mainContainer.appendChild(card);
   } else {
     // Facebook in-place insertion directly below the clicked post's action bar
     let inserted = false;

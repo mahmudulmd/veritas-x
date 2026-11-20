@@ -60,6 +60,7 @@
   opacity: 1 !important;
   box-sizing: border-box !important;
   width: 100% !important;
+  min-width: 320px !important;
   max-width: 460px !important;
   height: fit-content !important;
   min-height: 0 !important;
