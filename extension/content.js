@@ -886,29 +886,65 @@ function renderResultCard(postNode, data, triggerBtn) {
 
 function isCommentElement(el) {
   if (!el) return true;
-  // Facebook comments are inside <ul> or <ol> lists
-  if (el.closest('ul, ol')) {
+
+  // 1. Inside comment lists, reply threads, or listitems
+  if (el.closest('ul, ol, li, [role="list"], [role="listitem"]')) {
     return true;
   }
-  const label = (el.getAttribute("aria-label") || "").toLowerCase();
-  if (
-    label.includes("comment by") ||
-    label.includes("মন্তব্য করেছেন") ||
-    label.includes("reply by") ||
-    label.includes("উত্তর দিয়েছেন") ||
-    label.includes("write a comment") ||
-    label.includes("একটি মন্তব্য লিখুন") ||
-    label.includes("write an answer") ||
-    label.includes("একটি উত্তর লিখুন")
-  ) {
+
+  // 2. Inside the comment composer / input area ("Comment as ...", "Write a comment...")
+  if (el.closest(
+    'form, [role="form"], [role="textbox"], [contenteditable="true"], ' +
+    '[aria-label*="Comment as" i], [aria-label*="Write a comment" i], [aria-label*="Write an answer" i], ' +
+    '[aria-label*="একটি মন্তব্য লিখুন" i], [aria-label*="একটি উত্তর লিখুন" i], [aria-label*="Leave a comment" i]'
+  )) {
     return true;
   }
+
+  // 3. Inside the Facebook Reels Right-Hand Comments Drawer / Sidebar / Flyout
+  if (el.closest(
+    '[aria-label*="Comments" i], [aria-label*="Comment" i], [aria-label*="মন্তব্য" i], ' +
+    '[data-pagelet*="Comment" i], [data-pagelet*="ReelComments" i], [data-pagelet*="UFI" i], ' +
+    '[role="complementary"], div[data-visualcompletion*="comments"]'
+  )) {
+    return true;
+  }
+
+  // 4. Any ancestor with comment-related label or text (e.g. "Most relevant", "Comment as...")
+  let p = el;
+  for (let i = 0; i < 5 && p && p !== document.body; i++) {
+    const label = (p.getAttribute("aria-label") || "").toLowerCase();
+    const txt = (p.innerText || "").slice(0, 100).toLowerCase();
+
+    if (
+      label.includes("comment by") ||
+      label.includes("মন্তব্য করেছেন") ||
+      label.includes("reply by") ||
+      label.includes("উত্তর দিয়েছেন") ||
+      label.includes("comment as") ||
+      label.includes("write a comment") ||
+      label.includes("most relevant") ||
+      label.includes("all comments") ||
+      label.includes("reel comments") ||
+      txt.startsWith("comment as") ||
+      txt.startsWith("write a comment") ||
+      txt.startsWith("most relevant")
+    ) {
+      return true;
+    }
+    p = p.parentElement;
+  }
+
   return false;
 }
 
 function injectFacebookButtons() {
-  // 1. Remove all stray buttons in comments
-  document.querySelectorAll('ul .veritas-verify-btn, ol .veritas-verify-btn').forEach(b => b.remove());
+  // 1. Remove all stray buttons in comments or comments side-panel
+  document.querySelectorAll('.veritas-verify-btn').forEach(b => {
+    if (isCommentElement(b)) {
+      b.remove();
+    }
+  });
 
   const processedRows = new Set();
 
