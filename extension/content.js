@@ -938,66 +938,122 @@ function isCommentElement(el) {
   return false;
 }
 
-function isAuthorHeaderOrProfileRow(el) {
-  if (!el) return false;
-
-  // 1. If el or any parent is/contains a Follow button or author link
-  if (el.closest('[aria-label*="Follow" i], [aria-label*="অনুসরণ" i], div[role="button"]:has(span)')?.textContent?.includes("Follow")) {
-    return true;
-  }
-
-  // 2. Climb up to check if this row contains author/profile indicators
-  let p = el;
-  for (let i = 0; i < 4 && p && p !== document.body; i++) {
-    const text = (p.innerText || "").toLowerCase();
-    const aria = (p.getAttribute("aria-label") || "").toLowerCase();
-
-    // Check for author/creator/follow signature
-    if (
-      p.querySelector('[aria-label*="Follow" i], [aria-label*="অনুসরণ" i], a[href*="/user/"]') ||
-      text.includes("follow") ||
-      text.includes("অনুসরণ") ||
-      text.includes("original audio") ||
-      aria.includes("follow") ||
-      aria.includes("profile") ||
-      aria.includes("verified") ||
-      aria.includes("original audio")
-    ) {
-      // Ensure we don't accidentally match the true post action bar (which has Like AND Comment)
-      const isActualActionBar = p.querySelector('[aria-label*="Like" i], [aria-label*="পছন্দ" i]') &&
-        p.querySelector('[aria-label*="Comment" i], [aria-label*="মন্তব্য" i]');
-      if (!isActualActionBar) {
-        return true;
-      }
-    }
-    p = p.parentElement;
-  }
-
-  return false;
-}
-
 function injectFacebookButtons() {
-  // 1. Remove all stray buttons in comments, comment panels, or author headers
+  // 1. Remove all stray buttons in comments, comment panels, or author/profile headers on the left
   document.querySelectorAll('.veritas-verify-btn').forEach(b => {
-    if (isCommentElement(b) || isAuthorHeaderOrProfileRow(b)) {
+    // If inside comments or comment drawer
+    if (isCommentElement(b)) {
       b.remove();
+      return;
+    }
+
+    // If inside a Reel, check if it's placed on the author header on the left side
+    const reel = b.closest('div[data-pagelet*="Reel"], div[role="article"]');
+    if (reel && reel.querySelector('video')) {
+      const btnRect = b.getBoundingClientRect();
+      const reelRect = reel.getBoundingClientRect();
+      // On Reels, the action rail is strictly on the far right (x >= 55% of reel width).
+      // Any button on the left (x < 55%) is on the creator name / follow header -> REMOVE IT!
+      if (btnRect.left > 0 && reelRect.width > 0 && btnRect.left < reelRect.left + (reelRect.width * 0.55)) {
+        b.remove();
+        return;
+      }
     }
   });
 
-  const processedRows = new Set();
-
-  // Method A: Direct Share button identification
-  const shareElements = document.querySelectorAll(
-    '[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i]'
+  // 2. FACEBOOK REELS DEDICATED INJECTION (Vertical Right-Side Action Rail, directly under 3-dots)
+  const reels = document.querySelectorAll(
+    'div[data-pagelet*="Reel"], div[role="article"]:has(video), div[class*="reel"]'
   );
 
-  shareElements.forEach(el => {
-    if (isCommentElement(el) || isAuthorHeaderOrProfileRow(el) || el.closest('header, nav, [role="navigation"]')) return;
+  reels.forEach(reel => {
+    const reelRect = reel.getBoundingClientRect();
+    if (reelRect.width === 0 || reelRect.height === 0) return;
+
+    // Check if this reel already has a button in its right-hand action rail
+    const existingRailBtn = Array.from(reel.querySelectorAll('.veritas-verify-btn')).find(b => {
+      const r = b.getBoundingClientRect();
+      return r.left >= reelRect.left + (reelRect.width * 0.55);
+    });
+
+    if (existingRailBtn) return; // Already perfectly positioned on the right!
+
+    // Find the action buttons in the right vertical action rail
+    const actionButtons = Array.from(reel.querySelectorAll('div[role="button"], button')).filter(btn => {
+      const r = btn.getBoundingClientRect();
+      return r.left >= reelRect.left + (reelRect.width * 0.55);
+    });
+
+    if (actionButtons.length === 0) return;
+
+    // Prioritize placing directly under the 3-dots button (preferred) or Share button
+    const threeDots = actionButtons.find(b => {
+      const aria = (b.getAttribute("aria-label") || "").toLowerCase();
+      return aria.includes("more") || aria.includes("actions for this reel") || aria.includes("আরো") || aria.includes("আরও");
+    });
+
+    const shareBtn = actionButtons.find(b => {
+      const aria = (b.getAttribute("aria-label") || "").toLowerCase();
+      return aria.includes("share") || aria.includes("send this") || aria.includes("শেয়ার") || aria.includes("শেয়ার");
+    });
+
+    // Fall back to the last button in the vertical right rail
+    const targetRailButton = threeDots || shareBtn || actionButtons[actionButtons.length - 1];
+    if (targetRailButton && targetRailButton.parentElement) {
+      const post = findPostContainerForButton(targetRailButton) || reel;
+      const veritasBtn = createVerifyButton(post);
+
+      let targetWrapper = targetRailButton;
+      if (
+        targetRailButton.parentElement &&
+        targetRailButton.parentElement.parentElement &&
+        targetRailButton.parentElement.children.length === 1 &&
+        !targetRailButton.parentElement.classList.contains("veritas-verify-btn")
+      ) {
+        targetWrapper = targetRailButton.parentElement;
+      }
+
+      veritasBtn.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        min-height: 36px !important;
+        border-radius: 50% !important;
+        background: rgba(0, 0, 0, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        color: #1d9bf0 !important;
+        backdrop-filter: blur(8px) !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        margin: 12px auto 0 auto !important;
+        padding: 0 !important;
+        z-index: 99999 !important;
+      `;
+
+      targetWrapper.insertAdjacentElement("afterend", veritasBtn);
+    }
+  });
+
+  // 3. REGULAR FEED POSTS (Non-Reel Desktop Posts with Bottom Horizontal Action Bar)
+  const processedFeedRows = new Set();
+  const feedShareElements = document.querySelectorAll(
+    'div[data-pagelet*="FeedUnit"] [aria-label*="Share" i], ' +
+    'div[role="article"] [aria-label*="Share" i], ' +
+    'div[role="article"] [aria-label*="শেয়ার" i], div[role="article"] [aria-label*="শেয়ার" i]'
+  );
+
+  feedShareElements.forEach(el => {
+    // Strictly skip if it is inside a Reel or comments
+    if (el.closest('div[data-pagelet*="Reel"], div[class*="reel"]') || isCommentElement(el)) return;
+    const post = findPostContainerForButton(el);
+    if (post && post.querySelector('video[style*="object-fit"]')) return; // Reel
 
     const shareBtn = el.closest('div[role="button"], span[role="button"], button') || el;
     if (!shareBtn || !shareBtn.parentElement) return;
 
-    // Target the button wrapper if one exists in the row
     let target = shareBtn;
     if (
       shareBtn.parentElement &&
@@ -1010,69 +1066,12 @@ function injectFacebookButtons() {
     }
 
     const row = target.parentElement;
-    if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
-
-    const post = findPostContainerForButton(target) || target;
-    // Strictly at most ONE Veritas button per post or reel
+    if (!row || processedFeedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
     if (post && post.querySelector && post.querySelector('.veritas-verify-btn')) return;
 
-    processedRows.add(row);
-    const veritasBtn = createVerifyButton(post);
-
-    // INSERT DIRECTLY AFTER THE SHARE BUTTON!
+    processedFeedRows.add(row);
+    const veritasBtn = createVerifyButton(post || target);
     target.insertAdjacentElement("afterend", veritasBtn);
-  });
-
-  // Method B: Find Comment button -> Share button is the sibling immediately after it!
-  const commentElements = document.querySelectorAll(
-    '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], [aria-label*="Leave a comment" i]'
-  );
-
-  commentElements.forEach(el => {
-    if (isCommentElement(el) || isAuthorHeaderOrProfileRow(el) || el.closest('header, nav, [role="navigation"]')) return;
-
-    const commentBtn = el.closest('div[role="button"], span[role="button"], button') || el;
-    if (!commentBtn || !commentBtn.parentElement) return;
-
-    let commentTarget = commentBtn;
-    if (
-      commentBtn.parentElement &&
-      commentBtn.parentElement.parentElement &&
-      commentBtn.parentElement.parentElement.children.length >= 2 &&
-      commentBtn.parentElement.children.length === 1
-    ) {
-      commentTarget = commentBtn.parentElement;
-    }
-
-    const row = commentTarget.parentElement;
-    if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
-
-    // The Share button is the sibling directly after the Comment button
-    const shareSibling = commentTarget.nextElementSibling;
-    if (shareSibling && !shareSibling.classList.contains("veritas-verify-btn")) {
-      // Ensure it's not a reaction emoji
-      if (!shareSibling.querySelector('img[src*="emoji"], span[style*="background-image"]')) {
-        const post = findPostContainerForButton(shareSibling) || shareSibling;
-        // Strictly at most ONE Veritas button per post or reel
-        if (post && post.querySelector && post.querySelector('.veritas-verify-btn')) return;
-
-        processedRows.add(row);
-        const veritasBtn = createVerifyButton(post);
-        shareSibling.insertAdjacentElement("afterend", veritasBtn);
-      }
-    }
-  });
-
-  // 3. Cleanup: If any post or reel got more than 1 button, keep only the one in the action bar!
-  document.querySelectorAll('div[data-pagelet*="Reel"], div[role="article"]').forEach(container => {
-    const btns = Array.from(container.querySelectorAll('.veritas-verify-btn'));
-    if (btns.length > 1) {
-      // Keep the one closest to a share/like/comment button, remove others
-      const validBtn = btns.find(b => b.parentElement?.querySelector('[aria-label*="Share" i], [aria-label*="Comment" i], [aria-label*="Like" i]')) || btns[0];
-      btns.forEach(b => {
-        if (b !== validBtn) b.remove();
-      });
-    }
   });
 }
 
