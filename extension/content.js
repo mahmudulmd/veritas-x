@@ -261,6 +261,8 @@ function extractPostData(postNode) {
     mediaLabels = alts.join(" ");
   } else if (platform === "tiktok") {
     injectTikTokButtons();
+  } else if (platform === "tiktok") {
+    injectTikTokButtons();
   } else if (platform === "youtube") {
     const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
     tweetText = titleEl ? titleEl.textContent : "";
@@ -861,29 +863,60 @@ function injectTikTokButtons() {
   videoContainers.forEach(container => {
     if (container.querySelector(".veritas-verify-btn")) return;
 
-    // Find the right-side vertical action column or share button
-    const shareBtn = container.querySelector(
-      'button[data-e2e="feed-share-btn"], button[data-e2e="share-button"], [data-e2e*="share"], button[aria-label*="Share" i], button[aria-label*="শেয়ার" i]'
-    );
-    const likeBtn = container.querySelector(
-      'button[data-e2e="feed-like-btn"], button[data-e2e="like-icon"], [data-e2e*="like"]'
-    );
-    const actionContainer = container.querySelector('div[class*="DivActionItemContainer"], div[data-e2e*="action"]');
-
     const btn = createVerifyButton(container);
-    btn.style.margin = "8px auto";
 
-    if (shareBtn && shareBtn.parentElement) {
-      shareBtn.parentElement.insertAdjacentElement("afterend", btn);
-    } else if (likeBtn && likeBtn.parentElement && likeBtn.parentElement.parentElement) {
-      likeBtn.parentElement.parentElement.appendChild(btn);
-    } else if (actionContainer) {
-      actionContainer.appendChild(btn);
-    } else {
-      const vid = container.querySelector("video");
-      if (vid && vid.parentElement) {
-        vid.parentElement.appendChild(btn);
-      }
+    // 1. Prioritize placing directly BEFORE the 3-dots menu button on the top right
+    const threeDotBtn = container.querySelector(
+      'button[data-e2e="video-more-button"], button[data-e2e="more-button"], [data-e2e*="more"], button[aria-label*="More" i], button[aria-label*="Options" i], div[class*="DivMoreButton"], div[class*="DivReport"]'
+    );
+
+    if (threeDotBtn && threeDotBtn.parentElement) {
+      threeDotBtn.insertAdjacentElement("beforebegin", btn);
+      btn.style.cssText = `
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        min-height: 34px !important;
+        border-radius: 50% !important;
+        background: rgba(0, 0, 0, 0.55) !important;
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        color: #1d9bf0 !important;
+        backdrop-filter: blur(8px) !important;
+        cursor: pointer !important;
+        margin: 0 8px 0 0 !important;
+        padding: 0 !important;
+        z-index: 100 !important;
+        vertical-align: middle !important;
+      `;
+      return;
+    }
+
+    // 2. Fallback: Position at top-right corner of video player directly before the 3-dots position (right: 56px, top: 16px)
+    const vidWrapper = container.querySelector('div[class*="DivVideoWrapper"], div[class*="DivVideo"], video')?.parentElement || container;
+    if (vidWrapper) {
+      btn.style.cssText = `
+        position: absolute !important;
+        top: 16px !important;
+        right: 56px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        min-height: 34px !important;
+        border-radius: 50% !important;
+        background: rgba(0, 0, 0, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.35) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(8px) !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+      `;
+      vidWrapper.appendChild(btn);
     }
   });
 }
@@ -951,6 +984,8 @@ function injectVeritasButtons() {
       btn.style.margin = "6px auto";
       shareBtn.insertAdjacentElement("afterend", btn);
     });
+  } else if (platform === "tiktok") {
+    injectTikTokButtons();
   } else if (platform === "tiktok") {
     injectTikTokButtons();
   } else if (platform === "youtube") {
