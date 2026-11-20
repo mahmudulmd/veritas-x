@@ -12,6 +12,7 @@ function getPlatform() {
   const host = window.location.hostname;
   if (host.includes("instagram.com")) return "instagram";
   if (host.includes("facebook.com")) return "facebook";
+  if (host.includes("tiktok.com")) return "tiktok";
   if (host.includes("youtube.com")) return "youtube";
   return "x";
 }
@@ -91,6 +92,15 @@ function findPostContainerForButton(btn) {
     const pres = btn.closest('div[role="presentation"]');
     if (pres && pres.querySelector('video, img')) return pres;
     return btn.closest('div[style*="flex"]') || btn.parentElement;
+  }
+
+  // On TikTok: strictly target the feed video container or browse modal
+  if (platform === "tiktok") {
+    const feedItem = btn.closest('div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivItemContainer"], div[class*="DivContentContainer"], div[class*="DivVideoWrapper"], div[class*="DivVideoCard"], article');
+    if (feedItem) return feedItem;
+    const browseModal = btn.closest('div[data-e2e="browse-video"], div[class*="DivBrowseContainer"], div[class*="DivModalContainer"]');
+    if (browseModal) return browseModal;
+    return btn.closest('div[class*="ItemContainer"]') || btn.parentElement;
   }
 
   // On Facebook:
@@ -249,6 +259,8 @@ function extractPostData(postNode) {
       .map(el => el.getAttribute("alt") || el.getAttribute("aria-label") || "")
       .filter(Boolean);
     mediaLabels = alts.join(" ");
+  } else if (platform === "tiktok") {
+    injectTikTokButtons();
   } else if (platform === "youtube") {
     const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
     tweetText = titleEl ? titleEl.textContent : "";
@@ -344,8 +356,11 @@ function simulateVerification(data) {
     };
   }
 
-  // LAYER 3: Official Meta AI Badges & Platform Disclosures (Instagram / Facebook)
-  const isMetaAiBadge = combined.includes("meta_official_ai_badge") ||
+  // LAYER 3: Official Platform AI Badges & Disclosures (TikTok, Instagram, Facebook)
+  const isPlatformAiBadge = combined.includes("meta_official_ai_badge") ||
+    combined.includes("tiktok_official_ai_badge") ||
+    combined.includes("ai-generated") ||
+    combined.includes("creator labeled as ai") ||
     combined.includes("ai content") ||
     combined.includes("made with ai") ||
     combined.includes("created with ai") ||
@@ -356,15 +371,15 @@ function simulateVerification(data) {
     combined.includes("imagine with meta ai") ||
     combined.includes("meta ai");
 
-  if (isMetaAiBadge) {
+  if (isPlatformAiBadge) {
     const deepfake = Math.floor(Math.random() * 3) + 95; // 95% - 97%
     return {
       is_fake: true,
       authentic_score: 100 - deepfake,
       deepfake_score: deepfake,
       bot_score: 88,
-      fact_check_status: "Debunked / Meta Official AI Content",
-      summary: "Platform cryptographic disclosure verified: Labeled by Meta as Generative AI. Neural diffusion synthesis confirmed across visual frames."
+      fact_check_status: "Debunked / Official AI Disclosure",
+      summary: "Platform cryptographic provenance verified: Labeled by platform as Generative AI. Neural diffusion synthesis confirmed across visual frames."
     };
   }
 
@@ -681,6 +696,15 @@ function renderResultCard(postNode, data, triggerBtn) {
     } else if (post) {
       post.appendChild(card);
     }
+  } else if (platform === "tiktok") {
+    // TikTok in-place insertion
+    const feedItem = triggerBtn.closest('div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivContentContainer"], div[class*="DivVideoWrapper"], div[class*="DivItemContainer"], article') || postNode;
+    const desc = feedItem.querySelector('[data-e2e="video-desc"]')?.parentElement || feedItem.querySelector('div[class*="DivInfoContainer"]') || feedItem;
+    if (desc && desc !== feedItem) {
+      desc.insertAdjacentElement("afterend", card);
+    } else {
+      feedItem.appendChild(card);
+    }
   } else {
     // Facebook in-place insertion directly below the clicked post's action bar
     let inserted = false;
@@ -828,6 +852,42 @@ function injectFacebookButtons() {
   });
 }
 
+function injectTikTokButtons() {
+  // TikTok Web Feed & Video Items
+  const videoContainers = document.querySelectorAll(
+    'div[data-e2e="recommend-list-item-container"], div[data-e2e="feed-item"], div[class*="DivItemContainer"], div[class*="DivVideoWrapper"], div[class*="DivContentContainer"], div[data-e2e="browse-video"], article'
+  );
+
+  videoContainers.forEach(container => {
+    if (container.querySelector(".veritas-verify-btn")) return;
+
+    // Find the right-side vertical action column or share button
+    const shareBtn = container.querySelector(
+      'button[data-e2e="feed-share-btn"], button[data-e2e="share-button"], [data-e2e*="share"], button[aria-label*="Share" i], button[aria-label*="শেয়ার" i]'
+    );
+    const likeBtn = container.querySelector(
+      'button[data-e2e="feed-like-btn"], button[data-e2e="like-icon"], [data-e2e*="like"]'
+    );
+    const actionContainer = container.querySelector('div[class*="DivActionItemContainer"], div[data-e2e*="action"]');
+
+    const btn = createVerifyButton(container);
+    btn.style.margin = "8px auto";
+
+    if (shareBtn && shareBtn.parentElement) {
+      shareBtn.parentElement.insertAdjacentElement("afterend", btn);
+    } else if (likeBtn && likeBtn.parentElement && likeBtn.parentElement.parentElement) {
+      likeBtn.parentElement.parentElement.appendChild(btn);
+    } else if (actionContainer) {
+      actionContainer.appendChild(btn);
+    } else {
+      const vid = container.querySelector("video");
+      if (vid && vid.parentElement) {
+        vid.parentElement.appendChild(btn);
+      }
+    }
+  });
+}
+
 function injectVeritasButtons() {
   const platform = getPlatform();
 
@@ -891,6 +951,8 @@ function injectVeritasButtons() {
       btn.style.margin = "6px auto";
       shareBtn.insertAdjacentElement("afterend", btn);
     });
+  } else if (platform === "tiktok") {
+    injectTikTokButtons();
   } else if (platform === "youtube") {
     const posts = document.querySelectorAll('ytd-reel-video-renderer, ytd-rich-item-renderer');
     posts.forEach(post => {

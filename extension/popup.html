@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Veritas for X</title>
+  <title>Veritas Universal</title>
   <style>
     * {
       box-sizing: border-box;
@@ -10,7 +10,7 @@
       padding: 0;
     }
     body {
-      width: 320px;
+      width: 330px;
       background: #0f1419;
       color: #f7f9f9;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -25,12 +25,13 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     .logo {
-      font-size: 24px;
+      font-size: 26px;
     }
     .title-group h1 {
       font-size: 16px;
-      font-weight: 700;
+      font-weight: 800;
       color: #1d9bf0;
+      letter-spacing: -0.2px;
     }
     .title-group p {
       font-size: 11px;
@@ -46,16 +47,16 @@
       line-height: 1.5;
     }
     .founder-title {
-      font-size: 10px;
+      font-size: 9px;
       color: #1d9bf0;
       text-transform: uppercase;
       letter-spacing: 0.6px;
-      font-weight: 700;
-      margin-bottom: 4px;
+      font-weight: 800;
+      margin-bottom: 3px;
     }
     .founder-name {
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 800;
       color: #ffffff;
       margin-bottom: 4px;
     }
@@ -85,22 +86,31 @@
       padding: 2px 8px;
       border-radius: 9999px;
       font-size: 10px;
-      font-weight: 700;
+      font-weight: 800;
+      border: 1px solid rgba(0, 186, 124, 0.4);
     }
-    .action-btn {
-      width: 100%;
-      background: #1d9bf0;
-      color: #ffffff;
-      border: none;
-      padding: 10px;
-      border-radius: 9999px;
+    .platforms-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .platform-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #f7f9f9;
+      font-size: 11px;
       font-weight: 600;
-      font-size: 13px;
+      padding: 8px 4px;
+      text-align: center;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
-    .action-btn:hover {
-      background: #1a8cd8;
+    .platform-btn:hover {
+      background: rgba(29, 155, 240, 0.2);
+      border-color: #1d9bf0;
+      color: #1d9bf0;
     }
   </style>
 </head>
@@ -108,13 +118,13 @@
   <div class="header">
     <div class="logo">🛡️</div>
     <div class="title-group">
-      <h1>Veritas for X</h1>
-      <p>Autonomous Community Notes Engine</p>
+      <h1>Veritas Universal</h1>
+      <p>Cross-Platform AI Verification Engine (v3.0.0)</p>
     </div>
   </div>
 
   <div class="founder-box">
-    <div class="founder-title">Founder & Official Creator</div>
+    <div class="founder-title">Founder & Lead Architect</div>
     <div class="founder-name">Md. Mahmudul Hoque ⚡</div>
     <div class="founder-detail">Contact: <b>mahmudulhoque934@gmail.com</b></div>
     <div class="founder-detail">Location: <b>Panchagarh, Bangladesh 🌐</b></div>
@@ -126,16 +136,22 @@
       <span class="badge">ACTIVE (EDGE)</span>
     </div>
     <div class="status-row">
-      <span style="color: #71767b;">Deepfake Latency</span>
-      <span style="font-weight: 600;">~340ms</span>
+      <span style="color: #71767b;">Verification Speed</span>
+      <span style="font-weight: 700; color: #00ba7c;">Real-time Sub-Second</span>
     </div>
     <div class="status-row" style="margin-bottom: 0;">
-      <span style="color: #71767b;">Target Feed</span>
-      <span style="font-weight: 600;">x.com</span>
+      <span style="color: #71767b;">Supported Feeds</span>
+      <span style="font-weight: 600;">X • TikTok • FB • IG</span>
     </div>
   </div>
 
-  <button class="action-btn" id="open-x">Open X (Twitter)</button>
+  <div style="font-size: 11px; color: #8b98a5; margin-bottom: 6px; font-weight: 600;">Quick Launch:</div>
+  <div class="platforms-grid">
+    <button class="platform-btn" id="open-x">X</button>
+    <button class="platform-btn" id="open-tiktok">TikTok</button>
+    <button class="platform-btn" id="open-fb">Facebook</button>
+    <button class="platform-btn" id="open-ig">Instagram</button>
+  </div>
 
   <script src="popup.js"></script>
 </body>
