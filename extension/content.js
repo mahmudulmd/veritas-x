@@ -1010,6 +1010,7 @@ function injectFacebookButtons() {
     }
   });
 
+  const processedPosts = new Set();
   const processedRows = new Set();
 
   // Method A: Direct Share button identification (Standard Posts + Reels Right Action Rail)
@@ -1037,7 +1038,9 @@ function injectFacebookButtons() {
 
     const row = target.parentElement;
     if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
-    processedRows.add(row);
+
+    const post = findPostContainerForButton(target) || target;
+    if (post && processedPosts.has(post)) return;
 
     const isReel = window.location.href.includes("/reel/") ||
       !!target.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
@@ -1054,7 +1057,9 @@ function injectFacebookButtons() {
       }
     }
 
-    const post = findPostContainerForButton(target) || target;
+    processedRows.add(row);
+    if (post) processedPosts.add(post);
+
     const veritasBtn = createVerifyButton(post);
 
     if (isReel) {
@@ -1065,7 +1070,7 @@ function injectFacebookButtons() {
     target.insertAdjacentElement("afterend", veritasBtn);
   });
 
-  // Method B: Find Comment button -> Share button is the sibling immediately after it!
+  // Method B: For posts WITHOUT a Share button (e.g. Profile Picture updates, Private/Friends-only posts)
   const commentElements = document.querySelectorAll(
     '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], [aria-label*="Leave a comment" i]'
   );
@@ -1089,41 +1094,78 @@ function injectFacebookButtons() {
     const row = commentTarget.parentElement;
     if (!row || processedRows.has(row) || row.querySelector('.veritas-verify-btn')) return;
 
-    // The Share button is the sibling directly after the Comment button
+    const post = findPostContainerForButton(commentTarget) || commentTarget;
+    if (post && (processedPosts.has(post) || post.querySelector('.veritas-verify-btn'))) return;
+
+    // Check if there is a Share button sibling next to the Comment button
     const shareSibling = commentTarget.nextElementSibling;
+    let finalTarget = commentTarget;
+
     if (shareSibling && !shareSibling.classList.contains("veritas-verify-btn")) {
-      // Ensure it's not a reaction emoji
+      // If there's an actual share button, place after it
       if (!shareSibling.querySelector('img[src*="emoji"], span[style*="background-image"]')) {
-        let finalTarget = shareSibling;
+        finalTarget = shareSibling;
+      }
+    }
 
-        const isReel = window.location.href.includes("/reel/") ||
-          !!finalTarget.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
+    const isReel = window.location.href.includes("/reel/") ||
+      !!finalTarget.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
 
-        // On Reels: position below the 3-dots button
-        if (isReel) {
-          let nextBtn = finalTarget.nextElementSibling;
-          while (nextBtn && nextBtn.classList.contains("veritas-verify-btn")) {
-            nextBtn = nextBtn.nextElementSibling;
-          }
-          if (nextBtn) {
-            finalTarget = nextBtn;
-          }
-        }
+    // On Reels: position below the 3-dots button
+    if (isReel) {
+      let nextBtn = finalTarget.nextElementSibling;
+      while (nextBtn && nextBtn.classList.contains("veritas-verify-btn")) {
+        nextBtn = nextBtn.nextElementSibling;
+      }
+      if (nextBtn) {
+        finalTarget = nextBtn;
+      }
+    }
 
-        processedRows.add(row);
-        const post = findPostContainerForButton(finalTarget) || finalTarget;
+    processedRows.add(row);
+    if (post) processedPosts.add(post);
+
+    const veritasBtn = createVerifyButton(post);
+
+    if (isReel) {
+      veritasBtn.style.marginTop = "12px";
+    }
+
+    // Insert directly after finalTarget (after Comment if no Share button exists!)
+    finalTarget.insertAdjacentElement("afterend", veritasBtn);
+  });
+
+  // Method C: For Profile Picture updates & posts with comment counts ("❤️ 111  💬 22") where buttons are not found
+  const postArticles = document.querySelectorAll(
+    'div[role="article"], div[data-pagelet*="FeedUnit"], div[data-pagelet*="Profile"], div[data-ad-rendering-role="story"]'
+  );
+
+  postArticles.forEach(post => {
+    if (post.querySelector('.veritas-verify-btn') || processedPosts.has(post)) return;
+    if (isCommentElement(post) || isReelAuthorHeader(post)) return;
+
+    // Find comments counter element (e.g. "22", "22 comments", "২২টি মন্তব্য")
+    const commentCountEl = Array.from(post.querySelectorAll('span[role="button"], div[role="button"], a[role="link"] span, span')).find(el => {
+      const txt = (el.textContent || "").trim();
+      const aria = (el.getAttribute("aria-label") || "").toLowerCase();
+      return (
+        /^\d+\s*(comments?|টি মন্তব্য|মন্তব্য)?$/i.test(txt) &&
+        (aria.includes("comment") || aria.includes("মন্তব্য") || el.closest('[aria-label*="comment" i]'))
+      );
+    });
+
+    if (commentCountEl) {
+      const targetWrapper = commentCountEl.closest('[role="button"], span') || commentCountEl;
+      if (targetWrapper && targetWrapper.parentElement && !targetWrapper.parentElement.querySelector('.veritas-verify-btn')) {
+        processedPosts.add(post);
         const veritasBtn = createVerifyButton(post);
-
-        if (isReel) {
-          veritasBtn.style.marginTop = "12px";
-        }
-
-        finalTarget.insertAdjacentElement("afterend", veritasBtn);
+        veritasBtn.style.margin = "0 8px";
+        targetWrapper.insertAdjacentElement("afterend", veritasBtn);
       }
     }
   });
 
-  // 3. Cleanup: If any row got duplicate buttons side by side, remove the duplicate
+  // 4. Cleanup: If any row got duplicate buttons side by side, remove the duplicate
   document.querySelectorAll('.veritas-verify-btn').forEach(btn => {
     if (btn.nextElementSibling?.classList.contains("veritas-verify-btn")) {
       btn.nextElementSibling.remove();
