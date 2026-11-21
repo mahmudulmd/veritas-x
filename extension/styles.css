@@ -1,5 +1,6 @@
-/* Veritas Universal - Multi-Platform Stylesheet */
+/* Veritas-X - Multi-Platform Stylesheet */
 /* Founder & Creator: Md. Mahmudul Hoque */
+/* Colors: Green #10B981 | Red #EF4444 | Blue #3B82F6 */
 
 .veritas-verify-btn {
   display: inline-flex !important;
@@ -37,6 +38,39 @@
   cursor: wait !important;
 }
 
+/* TikTok Specific Native Action Button */
+.veritas-verify-btn.veritas-tiktok-btn {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  min-height: 40px !important;
+  margin: 0 auto 12px auto !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  display: flex !important;
+}
+
+.veritas-verify-btn.veritas-tiktok-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* Threads Specific Action Button */
+.veritas-verify-btn.veritas-threads-btn {
+  width: 32px !important;
+  height: 32px !important;
+  margin: 0 4px 0 8px !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+.veritas-verify-btn.veritas-threads-btn:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
 .veritas-spinner {
   width: 14px !important;
   height: 14px !important;
@@ -61,7 +95,7 @@
   box-sizing: border-box !important;
   width: 100% !important;
   min-width: 320px !important;
-  max-width: 460px !important;
+  max-width: 440px !important;
   height: fit-content !important;
   min-height: 0 !important;
   max-height: 85vh !important;
@@ -70,11 +104,11 @@
   flex-grow: 0 !important;
   flex-shrink: 0 !important;
   margin: 8px auto !important;
-  padding: 10px 12px !important;
+  padding: 12px 14px !important;
   background: #0f1419 !important;
-  border: 1px solid rgba(29, 155, 240, 0.4) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
   border-radius: 12px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75) !important;
   color: #f7f9f9 !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
   position: relative !important;
@@ -82,7 +116,7 @@
   clear: both !important;
   overflow: hidden !important;
   word-break: break-word !important;
-  animation: veritas-slide-down 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  animation: veritas-slide-down 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 @keyframes veritas-slide-down {
@@ -110,46 +144,52 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  margin-bottom: 12px !important;
-  padding-bottom: 10px !important;
+  margin-bottom: 10px !important;
+  padding-bottom: 8px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .status-fake {
-  background: rgba(244, 33, 46, 0.2) !important;
-  color: #f4212e !important;
-  border: 1px solid rgba(244, 33, 46, 0.5) !important;
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #EF4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
 }
 
 .status-verified {
-  background: rgba(0, 186, 124, 0.2) !important;
-  color: #00ba7c !important;
-  border: 1px solid rgba(0, 186, 124, 0.5) !important;
+  background: rgba(16, 185, 129, 0.18) !important;
+  color: #10B981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+}
+
+.status-bot {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #EF4444 !important;
+  border: 1px solid #EF4444 !important;
 }
 
 .veritas-grid,
 .veritas-metrics-row {
   display: grid !important;
   grid-template-columns: repeat(3, 1fr) !important;
-  gap: 10px !important;
-  margin-bottom: 12px !important;
+  gap: 8px !important;
+  margin-bottom: 10px !important;
 }
 
 .veritas-stat-box,
 .veritas-metric-pill {
   background: rgba(255, 255, 255, 0.05) !important;
-  padding: 10px 12px !important;
-  border-radius: 10px !important;
+  padding: 8px 6px !important;
+  border-radius: 8px !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  text-align: center !important;
 }
 
 .veritas-summary-box {
   background: rgba(255, 255, 255, 0.04) !important;
-  padding: 12px 14px !important;
-  border-radius: 10px !important;
-  font-size: 13px !important;
-  line-height: 1.5 !important;
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
   color: #e7e9ea !important;
-  margin-bottom: 12px !important;
-  border-left: 3px solid #1d9bf0 !important;
+  margin-bottom: 10px !important;
 }

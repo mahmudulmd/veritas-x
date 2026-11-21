@@ -1,20 +1,22 @@
 {
   "manifest_version": 3,
-  "name": "Veritas Universal — Multimodal AI Verification Engine",
-  "version": "3.3.4",
-  "description": "Cross-Platform Real-Time Multimodal AI Verification & Deepfake Detection for X, TikTok, Facebook, Instagram & YouTube. Founder: Md. Mahmudul Hoque.",
+  "name": "Veritas-X — Multimodal AI Verification Engine",
+  "version": "3.4.0",
+  "description": "Cross-Platform Real-Time Multimodal AI Verification & Deepfake Detection for X, Facebook, Instagram, TikTok, and Threads. Founder: Md. Mahmudul Hoque.",
   "author": "Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>",
   "permissions": [
     "activeTab",
     "storage"
   ],
   "host_permissions": [
-    "https://x.com/*",
-    "https://twitter.com/*",
-    "https://*.facebook.com/*",
-    "https://*.instagram.com/*",
-    "https://*.tiktok.com/*",
-    "https://*.youtube.com/*",
+    "*://*.x.com/*",
+    "*://*.twitter.com/*",
+    "*://*.facebook.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.threads.net/*",
+    "*://*.threads.com/*",
+    "*://*.youtube.com/*",
     "https://generativelanguage.googleapis.com/*",
     "http://127.0.0.1:8000/*"
   ],
@@ -23,17 +25,19 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Veritas Universal - Md. Mahmudul Hoque"
+    "default_title": "Veritas-X - Md. Mahmudul Hoque"
   },
   "content_scripts": [
     {
       "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*",
-        "https://*.facebook.com/*",
-        "https://*.instagram.com/*",
-        "https://*.tiktok.com/*",
-        "https://*.youtube.com/*"
+        "*://*.x.com/*",
+        "*://*.twitter.com/*",
+        "*://*.facebook.com/*",
+        "*://*.instagram.com/*",
+        "*://*.tiktok.com/*",
+        "*://*.threads.net/*",
+        "*://*.threads.com/*",
+        "*://*.youtube.com/*"
       ],
       "js": ["content.js"],
       "css": ["styles.css"],
