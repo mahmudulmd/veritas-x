@@ -708,7 +708,7 @@ function injectFacebookButtons() {
     }
   });
 
-  // 3. Feed Posts: Action bar immediately to the right of Share button
+  // 3. Feed Posts: Action bar immediately to the right of Share button wrapper in common horizontal flex row
   const shareElements = Array.from(document.querySelectorAll(
     '[aria-label*="Share" i], [aria-label*="শেয়ার" i], [aria-label*="Send this to friends" i]'
   )).filter(el => {
@@ -719,20 +719,119 @@ function injectFacebookButtons() {
   });
 
   shareElements.forEach(shareEl => {
-    const shareBtn = shareEl.closest('div[role="button"], span[role="button"], button') || shareEl;
-    if (!shareBtn || !shareBtn.parentElement) return;
+    // Climb up to find the common horizontal flex parent container holding Like, Comment, and Share
+    let flexRow = null;
+    let shareWrapper = null;
+    let curr = shareEl;
 
-    const row = shareBtn.parentElement;
-    if (processedElements.has(row) || row.querySelector('.veritas-verify-btn')) return;
+    while (curr && curr.parentElement && curr.parentElement !== document.body) {
+      const parent = curr.parentElement;
 
-    const post = findPostContainerForButton(shareBtn) || shareBtn;
+      // Do not climb into high-level post or feed boundary
+      if (
+        parent.getAttribute("role") === "article" ||
+        parent.getAttribute("role") === "feed" ||
+        parent.getAttribute("data-pagelet")?.includes("FeedUnit")
+      ) {
+        break;
+      }
+
+      // Check if parent contains Like or Comment alongside Share (the common action row)
+      const hasLikeOrComment = parent.querySelector(
+        '[aria-label*="Like" i], [aria-label*="পছন্দ" i], [aria-label*="Comment" i], [aria-label*="মন্তব্য" i]'
+      );
+
+      if (hasLikeOrComment && parent.children.length >= 2) {
+        flexRow = parent;
+        shareWrapper = curr; // Direct child of flexRow holding Share
+        break;
+      }
+
+      curr = parent;
+    }
+
+    if (!flexRow || !shareWrapper) return;
+    if (processedElements.has(flexRow) || flexRow.querySelector('.veritas-verify-btn')) return;
+
+    const post = findPostContainerForButton(flexRow) || flexRow;
     if (post && (processedPosts.has(post) || post.querySelector('.veritas-verify-btn'))) return;
 
-    processedElements.add(row);
+    processedElements.add(flexRow);
     if (post) processedPosts.add(post);
 
-    const btn = createVerifyButton(post);
-    shareBtn.insertAdjacentElement("afterend", btn);
+    const btn = createVerifyButton(post, "veritas-fb-feed-btn");
+    btn.style.cssText = `
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      margin-left: 8px !important;
+      margin-right: 4px !important;
+      vertical-align: middle !important;
+      align-self: center !important;
+    `;
+
+    // Append as a direct sibling right after the Share button wrapper inside the common horizontal flex row
+    shareWrapper.insertAdjacentElement("afterend", btn);
+  });
+
+  // Fallback for Feed posts with Comment but no Share
+  const commentElements = Array.from(document.querySelectorAll(
+    '[aria-label*="Comment" i], [aria-label*="মন্তব্য" i], [aria-label*="Leave a comment" i]'
+  )).filter(el => {
+    if (isInsideExcludedArea(el)) return false;
+    if (el.closest('div[data-pagelet*="Reel"], div[class*="reel"]')) return false;
+    return true;
+  });
+
+  commentElements.forEach(commentEl => {
+    let flexRow = null;
+    let commentWrapper = null;
+    let curr = commentEl;
+
+    while (curr && curr.parentElement && curr.parentElement !== document.body) {
+      const parent = curr.parentElement;
+      if (
+        parent.getAttribute("role") === "article" ||
+        parent.getAttribute("role") === "feed" ||
+        parent.getAttribute("data-pagelet")?.includes("FeedUnit")
+      ) {
+        break;
+      }
+
+      const hasLike = parent.querySelector('[aria-label*="Like" i], [aria-label*="পছন্দ" i]');
+      if (hasLike && parent.children.length >= 2) {
+        flexRow = parent;
+        commentWrapper = curr;
+        break;
+      }
+      curr = parent;
+    }
+
+    if (!flexRow || !commentWrapper) return;
+    if (processedElements.has(flexRow) || flexRow.querySelector('.veritas-verify-btn')) return;
+
+    const post = findPostContainerForButton(flexRow) || flexRow;
+    if (post && (processedPosts.has(post) || post.querySelector('.veritas-verify-btn'))) return;
+
+    processedElements.add(flexRow);
+    if (post) processedPosts.add(post);
+
+    const btn = createVerifyButton(post, "veritas-fb-feed-btn");
+    btn.style.cssText = `
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+      margin-left: 8px !important;
+      margin-right: 4px !important;
+      vertical-align: middle !important;
+      align-self: center !important;
+    `;
+
+    commentWrapper.insertAdjacentElement("afterend", btn);
   });
 }
 
