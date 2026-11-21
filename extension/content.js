@@ -78,16 +78,28 @@ function isInsideExcludedArea(el) {
   return false;
 }
 
+// Close Veritas Portal Modal & Backdrop cleanly
+function closeVeritasModal() {
+  const card = document.getElementById("veritas-unified-card");
+  if (card) card.remove();
+  const backdrop = document.getElementById("veritas-modal-backdrop");
+  if (backdrop) backdrop.remove();
+  document.querySelectorAll('.veritas-verify-btn').forEach(btn => {
+    btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
+  });
+}
+
 // 3. Create the Veritas-X Circular Shield Button with Strict Event Propagation Isolation
 function createVerifyButton(postNode, customClass = "") {
   const btn = document.createElement("button");
   btn.className = "veritas-verify-btn" + (customClass ? (" " + customClass) : "");
   btn.setAttribute("title", "Veritas-X: AI Forensics & Authenticity Scan");
   btn.setAttribute("aria-label", "Veritas-X Verify");
+  btn.setAttribute("type", "button");
   btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
 
-  btn.addEventListener("click", async (e) => {
-    // CRITICAL: Stop all bubbling so it never opens post permalink, triggers navigation, or pauses video
+  const handleClick = async (e) => {
+    // CRITICAL: Stop all bubbling in capture phase so platform handlers never fire
     e.stopPropagation();
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
     e.preventDefault();
@@ -104,24 +116,25 @@ function createVerifyButton(postNode, customClass = "") {
     // Toggle card if already open for this exact post
     const existingCard = document.getElementById("veritas-unified-card");
     if (existingCard && existingCard.dataset.currentPostId === currentPostId && existingCard.style.display !== "none" && existingCard.parentElement) {
-      existingCard.remove();
-      btn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
+      closeVeritasModal();
       return;
     }
+
+    // 1. Immediately render the Portal Modal in document.body with Instant "Analyzing..." Loading State!
+    renderLoadingModal(post, btn);
+    btn.innerHTML = `<span class="veritas-spinner"></span>`;
 
     const postData = extractPostData(post);
     const postKey = currentPostId;
 
-    // 1. Instant Cache Hit (0ms)
+    // 2. Instant Cache Hit (0ms)
     if (verificationCache.has(postKey)) {
       renderResultCard(post, verificationCache.get(postKey), btn);
       btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
       return;
     }
 
-    // 2. Multimodal AI Forensics Analysis via Gemini 3.5 Flash-Lite / Edge Core
-    btn.innerHTML = `<span class="veritas-spinner"></span>`;
-
+    // 3. Multimodal AI Forensics Analysis via Gemini 3.5 Flash-Lite / Edge Core
     let responded = false;
     const fallbackTimer = setTimeout(() => {
       if (!responded) {
@@ -165,7 +178,11 @@ function createVerifyButton(postNode, customClass = "") {
         btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
       }
     }
-  });
+  };
+
+  // Attach listener in capture phase and also as direct onclick for maximum defensiveness
+  btn.addEventListener("click", handleClick, true);
+  btn.onclick = handleClick;
 
   return btn;
 }
@@ -501,16 +518,106 @@ function simulateVerification(data) {
   };
 }
 
-// 8. Render the Unified Dark-Themed Floating Modal Card ("VERITAS VERIFIED NOTE")
-function renderResultCard(postNode, data, triggerBtn) {
+// 8. Render the Instant Loading Modal in document.body (Portal Pattern)
+function renderLoadingModal(postNode, triggerBtn) {
+  // 1. Ensure backdrop exists in document.body
+  let backdrop = document.getElementById("veritas-modal-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "veritas-modal-backdrop";
+    backdrop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeVeritasModal();
+    });
+    document.body.appendChild(backdrop);
+  }
+
+  // 2. Ensure card container exists in document.body (Guaranteed Never Clipped)
   let card = document.getElementById("veritas-unified-card");
   if (!card) {
     card = document.createElement("div");
     card.id = "veritas-unified-card";
+    card.className = "veritas-card veritas-result-card";
+    document.body.appendChild(card);
   }
-  card.remove(); // Relocate to currently clicked post
+
   card.dataset.currentPostId = postNode.id || postNode.innerText.slice(0, 30);
-  card.className = "veritas-card veritas-result-card";
+
+  card.innerHTML = `
+    <!-- Header -->
+    <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 12px !important; padding-bottom: 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;">
+      <div style="display: flex !important; align-items: center !important; gap: 6px !important; font-size: 13px !important; font-weight: 800 !important; color: #1d9bf0 !important;">
+        <span>⚡</span>
+        <span style="letter-spacing: 0.5px !important;">VERITAS VERIFIED NOTE</span>
+      </div>
+      <div style="display: flex !important; align-items: center !important; gap: 8px !important;">
+        <div style="padding: 3px 8px !important; border-radius: 6px !important; font-size: 10px !important; font-weight: 800 !important; background: rgba(29, 155, 240, 0.2) !important; color: #1d9bf0 !important; border: 1px solid rgba(29, 155, 240, 0.5) !important; white-space: nowrap !important; text-transform: uppercase !important;">
+          ANALYZING...
+        </div>
+        <button id="veritas-close-card" style="background: none !important; border: none !important; color: #8b98a5 !important; font-size: 16px !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important;">✕</button>
+      </div>
+    </div>
+
+    <!-- Loading Spinner Body -->
+    <div style="display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; padding: 24px 16px !important; text-align: center !important;">
+      <div style="width: 36px !important; height: 36px !important; border: 3px solid rgba(29, 155, 240, 0.25) !important; border-top-color: #1d9bf0 !important; border-radius: 50% !important; animation: veritas-spin 0.8s linear infinite !important; margin-bottom: 14px !important;"></div>
+      <div style="font-size: 14px !important; font-weight: 700 !important; color: #ffffff !important; margin-bottom: 6px !important;">Analyzing Post &amp; Media...</div>
+      <div style="font-size: 12px !important; color: #8b98a5 !important; max-width: 320px !important; line-height: 1.4 !important;">Multi-spectral scan checking generative diffusion, watermark artifacts, metadata, and bot signatures...</div>
+    </div>
+
+    <!-- Founder & Creator Footer -->
+    <div style="background: rgba(29, 155, 240, 0.08) !important; border: 1px solid rgba(29, 155, 240, 0.3) !important; border-radius: 8px !important; padding: 7px 10px !important;">
+      <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 3px !important;">
+        <span style="font-size: 9px !important; font-weight: 800 !important; color: #1d9bf0 !important; text-transform: uppercase !important; background: rgba(29, 155, 240, 0.2) !important; padding: 1px 5px !important; border-radius: 3px !important;">FOUNDER &amp; CREATOR</span>
+        <span style="font-size: 10px !important; color: #10B981 !important; font-weight: 700 !important; display: flex !important; align-items: center !important; gap: 4px !important;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+          ENGINE VERIFIED
+        </span>
+      </div>
+      <div style="font-size: 11.5px !important; font-weight: 800 !important; color: #ffffff !important;">Md. Mahmudul Hoque ⚡</div>
+      <div style="display: flex !important; justify-content: space-between !important; font-size: 10px !important; color: #8b98a5 !important; margin-top: 2px !important; flex-wrap: wrap !important; gap: 4px !important;">
+        <span>✉️ mahmudulhoque934@gmail.com</span>
+        <span>⚡ @hmahmudulm</span>
+      </div>
+      <div style="font-size: 9.5px !important; color: #1d9bf0 !important; margin-top: 3px !important; display: flex !important; align-items: center !important; gap: 4px !important;">
+        <span>📍 Panchagarh, Bangladesh 🌐</span>
+      </div>
+    </div>
+  `;
+
+  card.querySelector("#veritas-close-card")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    closeVeritasModal();
+  });
+}
+
+// 9. Render the Unified Dark-Themed Floating Modal Card in document.body
+function renderResultCard(postNode, data, triggerBtn) {
+  // 1. Ensure backdrop exists in document.body
+  let backdrop = document.getElementById("veritas-modal-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "veritas-modal-backdrop";
+    backdrop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeVeritasModal();
+    });
+    document.body.appendChild(backdrop);
+  }
+
+  // 2. Ensure card container exists in document.body (Guaranteed Never Clipped / Portal Overlay)
+  let card = document.getElementById("veritas-unified-card");
+  if (!card) {
+    card = document.createElement("div");
+    card.id = "veritas-unified-card";
+    card.className = "veritas-card veritas-result-card";
+    document.body.appendChild(card);
+  }
+
+  card.dataset.currentPostId = postNode.id || postNode.innerText.slice(0, 30);
 
   // Strict Color Scheme: Green #10B981 | Red #EF4444 | Blue #3B82F6
   const isBot = data.case_type === "BOT" || data.bot_score === 100 || (data.badge_text || "").includes("BOT");
@@ -613,37 +720,8 @@ function renderResultCard(postNode, data, triggerBtn) {
   card.querySelector("#veritas-close-card")?.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
-    card.remove();
-    if (triggerBtn) {
-      triggerBtn.innerHTML = `<span style="font-size: 15px; line-height: 1;">🛡️</span>`;
-    }
+    closeVeritasModal();
   });
-
-  // Position and attach modal safely into the post
-  const platform = getPlatform();
-
-  if (platform === "tiktok") {
-    // Attach fixed or absolute near the video
-    let vidContainer = triggerBtn.closest('div[class*="DivItemContainer"], [data-e2e="browse-video"], article') || postNode;
-    if (vidContainer && getComputedStyle(vidContainer).position === "static") {
-      vidContainer.style.position = "relative";
-    }
-    card.style.position = "absolute";
-    card.style.top = "60px";
-    card.style.right = "70px";
-    card.style.zIndex = "999999";
-    (vidContainer || document.body).appendChild(card);
-  } else {
-    // Standard insertion immediately below the post action bar
-    let inserted = false;
-    if (triggerBtn && triggerBtn.parentElement) {
-      triggerBtn.parentElement.insertAdjacentElement("afterend", card);
-      inserted = true;
-    }
-    if (!inserted && postNode) {
-      postNode.appendChild(card);
-    }
-  }
 }
 
 // 9. Exact Platform DOM Injections & Exclusions
