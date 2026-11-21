@@ -1,12 +1,12 @@
-// Veritas-X - High-Speed Background Service Worker
-// Powered by Google Gemini 3.5 Flash-Lite & Edge Heuristics
+// Veritas-X - Real-Time Multimodal AI Verification Engine
+// Powered by Google Gemini 3.5 Flash-Lite Vision & Forensics
 // Founder & Lead Architect: Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>
 // Location: Panchagarh Sadar, Panchagarh 5000, Bangladesh
 
-// In-memory cache for ultra-fast instant lookups
+// In-memory cache for ultra-fast instant lookups of recently analyzed posts
 const memoryCache = new Map();
 
-// Load local configuration if available (Keep existing configuration intact)
+// Load local configuration (Keep existing configuration intact)
 let GEMINI_API_KEY = "";
 try {
   importScripts("config.js");
@@ -14,247 +14,249 @@ try {
     GEMINI_API_KEY = LOCAL_CONFIG.GEMINI_API_KEY;
   }
 } catch (e) {
-  // config.js not found
+  // config.js not loaded
 }
-
-const LOCAL_BACKEND_URL = "http://127.0.0.1:8000/api/verify";
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "verifyTweet" || request.action === "verifyPost") {
     handlePostVerification(request.data)
       .then(result => sendResponse({ success: true, data: result }))
       .catch(err => {
-        sendResponse({ success: false, error: err.toString() });
+        console.error("[Veritas Engine Error]:", err);
+        sendResponse({ success: false, error: err.message || String(err) });
       });
-    return true; // Keep channel open for async response
+    return true; // Keep message channel open for async response
   }
 });
 
-// Enforces exact Case A, Case B, and Case C scoring & text/color parameters
-function formatVerdict({ caseType, isVideoOrImageOrAudio, specificStatus, summary }) {
-  if (caseType === "BOT" || caseType === "CASE_C") {
-    // Case C: Automated Bot Post / Bot Media
-    // BOT / SYNTH: 100% (Red #EF4444) | ORIGINAL: 0% (Red #EF4444)
-    // Status Badge: BOT ALERT (Red) & Automated Bot Activity Detected
-    return {
-      case_type: "BOT",
-      is_fake: true,
-      authentic_score: 0,
-      deepfake_score: Math.floor(Math.random() * 11) + 10, // 10% - 20%
-      bot_score: 100, // Strictly 100%
-      badge_text: "BOT ALERT",
-      fact_check_status: specificStatus || "Automated Bot Activity Detected",
-      summary: summary || "Automated bot activity confirmed. Syntactic distribution and behavioral heuristics match non-human coordinated spam networks.",
-      founder: "Md. Mahmudul Hoque",
-      contact: "mahmudulhoque934@gmail.com",
-      handle: "@hmahmudulm",
-      location: "Panchagarh, Bangladesh"
-    };
-  } else if (caseType === "FAKE" || caseType === "AI" || caseType === "CASE_B") {
-    // Case B: Fake News / False Story / AI-Generated Video, Image, or Song
-    // FAKE / AI RISK: 90% - 100% (Red #EF4444). If video/image/song: 95% - 100%
-    // ORIGINAL: 0% - 5% (Red #EF4444)
-    // Status Badge: FAKE / AI DETECTED (Red) & High Risk: Synthetic Media or Misinformation Detected
-    const dfScore = isVideoOrImageOrAudio
-      ? (Math.floor(Math.random() * 6) + 95) // 95% - 100%
-      : (Math.floor(Math.random() * 11) + 90); // 90% - 100%
-    const origScore = Math.floor(Math.random() * 6); // 0% - 5%
-    const botScore = Math.floor(Math.random() * 11) + 4; // 4% - 14%
-    return {
-      case_type: "FAKE",
-      is_fake: true,
-      authentic_score: origScore,
-      deepfake_score: dfScore,
-      bot_score: botScore,
-      badge_text: "FAKE / AI DETECTED",
-      fact_check_status: specificStatus || "High Risk: Synthetic Media or Misinformation Detected",
-      summary: summary || "Multi-spectral forensic scan detected generative synthesis or unverified claims. Temporal landmark inconsistencies and generative diffusion signatures confirmed.",
-      founder: "Md. Mahmudul Hoque",
-      contact: "mahmudulhoque934@gmail.com",
-      handle: "@hmahmudulm",
-      location: "Panchagarh, Bangladesh"
-    };
-  } else {
-    // Case A: Real / Authentic Post (Human-created, verified news, organic media)
-    // ORIGINAL: 90% - 100% (Green #10B981)
-    // AI RISK / FAKE: 0% - 5% (Green #10B981)
-    // BOT / SYNTH: 0% - 5% (Blue #3B82F6 or Green)
-    // Status Badge: SYSTEM VERIFIED (Green) & Verified Authentic (Organic Media)
-    const origScore = Math.floor(Math.random() * 11) + 90; // 90% - 100%
-    const dfScore = Math.floor(Math.random() * 6); // 0% - 5%
-    const botScore = Math.floor(Math.random() * 6); // 0% - 5%
-    return {
-      case_type: "REAL",
-      is_fake: false,
-      authentic_score: origScore,
-      deepfake_score: dfScore,
-      bot_score: botScore,
-      badge_text: "SYSTEM VERIFIED",
-      fact_check_status: specificStatus || "Verified Authentic (Organic Media)",
-      summary: summary || "Multi-spectral analysis verified organic capture signature. Zero generative diffusion artifacts or automated bot manipulation detected.",
-      founder: "Md. Mahmudul Hoque",
-      contact: "mahmudulhoque934@gmail.com",
-      handle: "@hmahmudulm",
-      location: "Panchagarh, Bangladesh"
-    };
-  }
-}
-
 async function handlePostVerification(postData) {
-  const cacheKey = (postData.platform || "") + "::" + (postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 120);
+  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes("YOUR_")) {
+    throw new Error("Gemini API Key is missing. Please set your valid GEMINI_API_KEY in extension/config.js.");
+  }
+
+  // Generate a distinct cache key including media presence
+  const cacheKey = [
+    postData.platform || "",
+    postData.userHandle || "",
+    (postData.tweetText || "").slice(0, 100),
+    postData.mediaType || "",
+    postData.mediaFrame ? "has_frame" : "no_frame"
+  ].join("::");
+
   if (memoryCache.has(cacheKey)) {
     return memoryCache.get(cacheKey);
   }
 
-  const isMedia = postData.mediaType === "video" || postData.mediaType === "image" || postData.mediaType === "audio" || (postData.tweetText || "").toLowerCase().includes("song") || (postData.tweetText || "").toLowerCase().includes("music");
+  const prompt = `You are Veritas-X, an elite multimodal AI verification and forensics engine founded by Md. Mahmudul Hoque.
+Analyze this social media post & attached media in real time:
+- Platform: ${postData.platform || "Social Media"}
+- Author: ${postData.userHandle || "Unknown"} (${postData.fullUserHeader || ""})
+- Caption / Text: "${postData.tweetText || ""}"
+- Media Type: ${postData.mediaType || "none"}
+- Labels & Audio Context: "${postData.mediaLabels || ""}"
 
-  // 1. Direct Fast Gemini 3.5 Flash-Lite AI Call with Strict 3.5s Timeout
-  if (GEMINI_API_KEY && !GEMINI_API_KEY.includes("YOUR_")) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s max
+CLASSIFICATION & SCORING RULES:
+1. Examine the visual frame (if attached) and text context:
+   - Case A (Authentic / Real): Real creator cooking, vlogging, everyday life, organic camera motion, legitimate brand campaigns, genuine news broadcast.
+   - Case B (Fake / Synthetic): AI-generated images/videos (Sora, Kling, Runway, Pika, Deepfake face-swap), synthetic voices/songs (Suno, Udio), or fabricated news.
+   - Case C (Automated Bot): Spam networks, sequences of 6+ emojis paired with download links, phishing ads, or automated scam accounts.
 
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
-      const prompt = `You are Veritas-X, an elite AI forensics and fact-checking verification engine.
-Analyze this social media post (Platform: ${postData.platform || "Social Media"}):
-Author: ${postData.userHandle || "Unknown"} (Header: "${postData.fullUserHeader || ""}")
-Post Text / Caption: "${postData.tweetText || ""}"
-Media Type: ${postData.mediaType || "none"}
-Labels / Context: "${postData.mediaLabels || ""}"
+2. Enforce strict dynamic scoring ranges:
+   - If Case A (Authentic / Real):
+     "case_type": "CASE_A"
+     "authentic_score": dynamic integer between 91 and 99 (reflecting organic confidence)
+     "deepfake_score": dynamic integer between 1 and 5
+     "bot_score": dynamic integer between 1 and 5
+     "specific_status": e.g. "Verified Authentic (Organic Media)"
+     "summary": exactly 2 natural, post-specific forensic sentences explaining your analysis of THIS specific post/media.
 
-CLASSIFICATION RULES:
-Assign EXACTLY ONE case_type:
-- "CASE_A" (Real / Authentic): Genuine human-created content, authentic everyday personal photos/videos, creator reels, certified news agency reporting, or official legitimate corporate brand campaigns. Posts with a real creator name, coherent caption, organic video/photos, or "Original audio" are 100% AUTHENTIC (CASE_A).
-- "CASE_B" (Fake News / Synthetic Media): AI-generated images, AI-generated videos (Sora, Runway, Pika, Kling, Deepfake, Face-swap), AI songs/music (Suno, Udio, AI voice covers), or fabricated deceptive news/misinformation.
-- "CASE_C" (Automated Bot / Bot Media): ONLY flag as bot if there is unambiguous evidence of automated bot farms (e.g., gibberish account names like Crosispeng Frukifocros, strings of 6+ festive emojis like 🎁🤶🎅🏻, phishing download schemes, or spam bot scripts). NEVER classify a post as a bot merely because its caption is short or contains video view numbers. If video or image media is present without spam indicators, treat it as organic media (CASE_A).
+   - If Case B (Fake / Synthetic / Misinformation):
+     "case_type": "CASE_B"
+     "authentic_score": dynamic integer between 1 and 5
+     "deepfake_score": dynamic integer between 92 and 99 (95-99 for synthetic video/image)
+     "bot_score": dynamic integer between 4 and 14
+     "specific_status": e.g. "High Risk: Synthetic Media or Misinformation Detected"
+     "summary": exactly 2 natural, post-specific forensic sentences explaining the generative synthesis artifacts, temporal flaws, or deceptive claims in THIS post.
 
-Return ONLY a strict JSON object:
+   - If Case C (Automated Bot / Bot Spam):
+     "case_type": "CASE_C"
+     "authentic_score": 0
+     "deepfake_score": dynamic integer between 10 and 20
+     "bot_score": 100
+     "specific_status": "Automated Bot Activity Detected"
+     "summary": exactly 2 natural, post-specific forensic sentences explaining the automated bot patterns, emoji spam, or fraudulent behavior detected.
+
+3. Return ONLY a strict JSON object:
 {
   "case_type": "CASE_A" | "CASE_B" | "CASE_C",
-  "specific_status": string (e.g. "Verified Authentic (Organic Media)", "High Risk: Synthetic Media or Misinformation Detected", "Debunked / AI Face-Swap Deepfake", "Automated Bot Activity Detected"),
-  "summary": string (Exactly 2 clear, concise factual forensic sentences explaining why it is authentic, fake/synthetic, or bot-driven)
+  "authentic_score": number,
+  "deepfake_score": number,
+  "bot_score": number,
+  "specific_status": string,
+  "summary": string
 }`;
 
-      const res = await fetch(geminiUrl, {
+  const parts = [{ text: prompt }];
+
+  // Attach live video snapshot or image frame if captured by content.js
+  if (postData.mediaFrame) {
+    parts.push({
+      inlineData: {
+        mimeType: postData.mediaFrameMime || "image/jpeg",
+        data: postData.mediaFrame
+      }
+    });
+  }
+
+  const payload = {
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0.4,
+      responseMimeType: "application/json",
+      maxOutputTokens: 350
+    }
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds max
+
+  let res;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
+      {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            maxOutputTokens: 200
-          }
-        })
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const json = await res.json();
-        const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-
-          const textAndAuthor = ((postData.tweetText || "") + " " + (postData.userHandle || "") + " " + (postData.fullUserHeader || "")).toLowerCase();
-          const summaryAndStatus = ((parsed.summary || "") + " " + (parsed.specific_status || "")).toLowerCase();
-
-          // 1. Brand Safety Guardrail: Legitimate corporate campaigns are ALWAYS Case A
-          const brandWhitelist = [
-            "firefox", "mozilla", "mozilla firefox", "google", "microsoft", "apple", "adobe",
-            "samsung", "meta", "amazon", "spotify", "netflix", "canva", "duolingo", "intel", "nvidia"
-          ];
-          const isKnownBrand = brandWhitelist.some(b => textAndAuthor.includes(b));
-
-          // 2. Bot / Spam Indicators (Crosispeng, 6+ emojis with download/ad, scam money keywords)
-          const emojiCount = (textAndAuthor.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/gu) || []).length;
-          const hasSpamIndicators = textAndAuthor.includes("crosispeng") ||
-            textAndAuthor.includes("frukifocros") ||
-            (emojiCount >= 6 && (textAndAuthor.includes("download") || textAndAuthor.includes("ad"))) ||
-            textAndAuthor.includes("free crypto") ||
-            textAndAuthor.includes("ঘরে বসে আয়") ||
-            textAndAuthor.includes("বিকাশ ফ্রি") ||
-            textAndAuthor.includes("giveaway claim");
-
-          // Anti-Contradiction: If AI analysis mentions bot/spam/automated, or spam indicators present
-          const isBotAnalysis = summaryAndStatus.includes("bot activity") ||
-            summaryAndStatus.includes("automated bot") ||
-            summaryAndStatus.includes("bot post") ||
-            summaryAndStatus.includes("spam bot") ||
-            summaryAndStatus.includes("bot farm") ||
-            summaryAndStatus.includes("malicious ad");
-
-          if (isKnownBrand) {
-            parsed.case_type = "CASE_A";
-            parsed.specific_status = "Verified Authentic (Official Brand Campaign)";
-            parsed.summary = "Verified legitimate commercial campaign from an official corporate entity. Content represents authentic product communications and verified digital provenance.";
-          } else if (hasSpamIndicators || isBotAnalysis || parsed.case_type === "CASE_C") {
-            // Strictly enforce Case C on bots/spam: NEVER allow Case A or SYSTEM VERIFIED!
-            parsed.case_type = "CASE_C";
-            parsed.specific_status = "Automated Bot Activity Detected";
-            if (!parsed.summary || !isBotAnalysis) {
-              parsed.summary = "Automated bot farm activity confirmed. Syntactic distribution and behavioral heuristics match non-human coordinated spam networks.";
-            }
-          } else if (
-            textAndAuthor.includes("ai content") ||
-            textAndAuthor.includes("deepfake") ||
-            textAndAuthor.includes("face swap") ||
-            textAndAuthor.includes("official_ai_badge") ||
-            parsed.case_type === "CASE_B"
-          ) {
-            parsed.case_type = "CASE_B";
-            parsed.specific_status = "High Risk: Synthetic Media or Misinformation Detected";
-          } else {
-            // Organic media / creator content (Food reels, vlogs, organic videos) -> Case A
-            parsed.case_type = "CASE_A";
-            parsed.specific_status = "Verified Authentic (Organic Media)";
-            if (!parsed.summary || summaryAndStatus.includes("bot") || summaryAndStatus.includes("spam")) {
-              parsed.summary = "Multi-spectral analysis verified organic capture signature. Zero generative diffusion artifacts or automated bot manipulation detected.";
-            }
-          }
-
-          const result = formatVerdict({
-            caseType: parsed.case_type || "CASE_A",
-            isVideoOrImageOrAudio: isMedia,
-            specificStatus: parsed.specific_status,
-            summary: parsed.summary
-          });
-
-          memoryCache.set(cacheKey, result);
-          return result;
-        }
+        body: JSON.stringify(payload)
       }
-    } catch (err) {
-      console.warn("[Veritas Cloud AI Warn]:", err);
-      // Fall through to local fallback
+    );
+
+    // Fallback to gemini-3.5-flash if 503 high demand spike occurs
+    if (res.status === 503) {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify(payload)
+        }
+      );
     }
+  } catch (netErr) {
+    clearTimeout(timeoutId);
+    if (netErr.name === "AbortError") {
+      throw new Error("AI analysis timed out after 12s. Please check your network connection and try again.");
+    }
+    throw new Error("Network error connecting to Gemini API: " + netErr.message);
   }
 
-  // 2. Try Local Python Backend (1s fast check)
+  clearTimeout(timeoutId);
+
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => null);
+    const msg = errJson?.error?.message || `Gemini API HTTP ${res.status}: ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  const json = await res.json();
+  const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawText) {
+    throw new Error("Gemini returned an empty response. Please verify the prompt and model status.");
+  }
+
+  let parsed;
   try {
-    const localCtrl = new AbortController();
-    const localTimer = setTimeout(() => localCtrl.abort(), 1000);
-    const localRes = await fetch(LOCAL_BACKEND_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: localCtrl.signal,
-      body: JSON.stringify(postData)
-    });
-    clearTimeout(localTimer);
-    if (localRes.ok) {
-      const localData = await localRes.json();
-      const result = formatVerdict({
-        caseType: localData.is_fake ? "CASE_B" : (localData.bot_score >= 60 ? "CASE_C" : "CASE_A"),
-        isVideoOrImageOrAudio: isMedia,
-        specificStatus: localData.fact_check_status,
-        summary: localData.summary
-      });
-      memoryCache.set(cacheKey, result);
-      return result;
-    }
-  } catch (err) {
-    // Local backend offline
+    parsed = JSON.parse(rawText);
+  } catch (jsonErr) {
+    throw new Error("Failed to parse AI response as JSON: " + rawText.slice(0, 100));
   }
 
-  throw new Error("Cloud AI timed out, relying on Sub-Second Edge Core.");
+  let caseType = parsed.case_type || "CASE_A";
+  let authenticScore = Number(parsed.authentic_score);
+  let deepfakeScore = Number(parsed.deepfake_score);
+  let botScore = Number(parsed.bot_score);
+  let specificStatus = parsed.specific_status || "";
+  let summary = parsed.summary || "";
+
+  // Anti-Contradiction Guardrails
+  const textAndAuthor = ((postData.tweetText || "") + " " + (postData.userHandle || "") + " " + (postData.fullUserHeader || "")).toLowerCase();
+  const summaryLower = ((summary || "") + " " + (specificStatus || "")).toLowerCase();
+
+  // 1. Corporate Brand Safety
+  const brandWhitelist = [
+    "firefox", "mozilla", "mozilla firefox", "google", "microsoft", "apple", "adobe",
+    "samsung", "meta", "amazon", "spotify", "netflix", "canva", "duolingo", "intel", "nvidia"
+  ];
+  const isKnownBrand = brandWhitelist.some(b => textAndAuthor.includes(b));
+
+  // 2. Bot / Spam Detection
+  const emojiCount = (textAndAuthor.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/gu) || []).length;
+  const hasSpamIndicators = textAndAuthor.includes("crosispeng") ||
+    textAndAuthor.includes("frukifocros") ||
+    (emojiCount >= 6 && (textAndAuthor.includes("download") || textAndAuthor.includes("ad"))) ||
+    textAndAuthor.includes("free crypto") ||
+    textAndAuthor.includes("ঘরে বসে আয়") ||
+    textAndAuthor.includes("বিকাশ ফ্রি") ||
+    textAndAuthor.includes("giveaway claim");
+
+  const isBotAnalysis = summaryLower.includes("bot activity") ||
+    summaryLower.includes("automated bot") ||
+    summaryLower.includes("bot post") ||
+    summaryLower.includes("spam bot") ||
+    summaryLower.includes("bot farm") ||
+    summaryLower.includes("malicious ad");
+
+  if (isKnownBrand) {
+    caseType = "CASE_A";
+    specificStatus = specificStatus || "Verified Authentic (Official Brand Campaign)";
+    if (authenticScore < 91 || isNaN(authenticScore)) authenticScore = Math.floor(Math.random() * 6) + 94;
+    if (deepfakeScore > 5 || isNaN(deepfakeScore)) deepfakeScore = Math.floor(Math.random() * 4) + 1;
+    if (botScore > 5 || isNaN(botScore)) botScore = Math.floor(Math.random() * 4) + 1;
+  } else if (hasSpamIndicators || isBotAnalysis || caseType === "CASE_C") {
+    // Enforce Case C on bot/spam posts
+    caseType = "CASE_C";
+    specificStatus = specificStatus || "Automated Bot Activity Detected";
+    authenticScore = 0;
+    botScore = 100;
+    if (isNaN(deepfakeScore) || deepfakeScore < 10 || deepfakeScore > 20) deepfakeScore = Math.floor(Math.random() * 11) + 10;
+  } else if (
+    textAndAuthor.includes("ai content") ||
+    textAndAuthor.includes("deepfake") ||
+    textAndAuthor.includes("face swap") ||
+    textAndAuthor.includes("official_ai_badge") ||
+    caseType === "CASE_B"
+  ) {
+    caseType = "CASE_B";
+    specificStatus = specificStatus || "High Risk: Synthetic Media or Misinformation Detected";
+    if (deepfakeScore < 92 || isNaN(deepfakeScore)) deepfakeScore = Math.floor(Math.random() * 6) + 94;
+    if (authenticScore > 5 || isNaN(authenticScore)) authenticScore = Math.floor(Math.random() * 5) + 1;
+    if (botScore > 14 || isNaN(botScore)) botScore = Math.floor(Math.random() * 10) + 4;
+  } else {
+    // Case A: Authentic / Real Organic Post
+    caseType = "CASE_A";
+    specificStatus = specificStatus || "Verified Authentic (Organic Media)";
+    if (authenticScore < 91 || isNaN(authenticScore)) authenticScore = Math.floor(Math.random() * 8) + 92;
+    if (deepfakeScore > 5 || isNaN(deepfakeScore)) deepfakeScore = Math.floor(Math.random() * 4) + 1;
+    if (botScore > 5 || isNaN(botScore)) botScore = Math.floor(Math.random() * 4) + 1;
+  }
+
+  const finalResult = {
+    case_type: caseType === "CASE_C" ? "BOT" : (caseType === "CASE_B" ? "FAKE" : "REAL"),
+    is_fake: caseType !== "CASE_A",
+    authentic_score: authenticScore,
+    deepfake_score: deepfakeScore,
+    bot_score: botScore,
+    badge_text: caseType === "CASE_C" ? "BOT ALERT" : (caseType === "CASE_B" ? "FAKE / AI DETECTED" : "SYSTEM VERIFIED"),
+    fact_check_status: specificStatus,
+    summary: summary,
+    founder: "Md. Mahmudul Hoque",
+    contact: "mahmudulhoque934@gmail.com",
+    handle: "@hmahmudulm",
+    location: "Panchagarh, Bangladesh"
+  };
+
+  memoryCache.set(cacheKey, finalResult);
+  return finalResult;
 }

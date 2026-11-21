@@ -85,6 +85,79 @@ function closeVeritasModal() {
   });
 }
 
+// Capture live base64 snapshot of active <video> or primary <img> via offscreen <canvas>
+function captureMediaFrame(postNode) {
+  try {
+    // 1. Check for active video
+    let video = postNode.querySelector("video");
+    if (!video && (window.location.pathname.includes("/reel/") || window.location.pathname.includes("/watch/"))) {
+      video = document.querySelector('div[role="main"] video') || document.querySelector("video");
+    }
+
+    if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+      const canvas = document.createElement("canvas");
+      const maxDim = 512;
+      let w = video.videoWidth;
+      let h = video.videoHeight;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+      const base64 = dataUrl.split(",")[1];
+      if (base64 && base64.length > 100) {
+        return { mimeType: "image/jpeg", base64 };
+      }
+    }
+
+    // 2. Check for primary image
+    const img = postNode.querySelector(
+      'img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"] img, ' +
+      'article img[src*="pbs.twimg.com"], article img[src*="cdninstagram"], img[src*="threads"], img:not([width="16"]):not([width="20"])'
+    );
+    if (img && img.naturalWidth > 60 && img.naturalHeight > 60) {
+      const canvas = document.createElement("canvas");
+      const maxDim = 512;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      try {
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+        const base64 = dataUrl.split(",")[1];
+        if (base64 && base64.length > 100) {
+          return { mimeType: "image/jpeg", base64 };
+        }
+      } catch (corsErr) {
+        // Tainted canvas due to cross-origin image
+      }
+    }
+  } catch (err) {
+    console.warn("[Veritas Frame Capture Warn]:", err);
+  }
+  return null;
+}
+
 // 3. Create the Veritas-X Circular Shield Button with Strict Event Propagation Isolation
 function createVerifyButton(postNode, customClass = "") {
   const btn = document.createElement("button");
@@ -120,58 +193,59 @@ function createVerifyButton(postNode, customClass = "") {
     renderLoadingModal(post, btn);
     btn.innerHTML = `<span class="veritas-spinner"></span>`;
 
+    // 2. Extract Live Fresh Post Data + Capture Video Frame / Image Snapshot
     const postData = extractPostData(post);
-    const postKey = currentPostId;
+    const frameData = captureMediaFrame(post);
+    if (frameData) {
+      postData.mediaFrame = frameData.base64;
+      postData.mediaFrameMime = frameData.mimeType;
+    }
 
-    // 2. Instant Cache Hit (0ms)
+    const postKey = (postData.userHandle || "") + "::" + (postData.tweetText || "").slice(0, 80) + "::" + currentPostId;
+
+    // 3. Instant Cache Hit (if previously verified live in this session)
     if (verificationCache.has(postKey)) {
       renderResultCard(post, verificationCache.get(postKey), btn);
       btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
       return;
     }
 
-    // 3. Multimodal AI Forensics Analysis via Gemini 3.5 Flash-Lite / Edge Core
+    // 4. Live Multimodal AI Analysis via Background Service Worker (NO static hardcoded responses!)
     let responded = false;
-    const fallbackTimer = setTimeout(() => {
+    const safetyTimeout = setTimeout(() => {
       if (!responded) {
         responded = true;
-        const edgeRes = simulateVerification(postData);
-        console.log("🛡️ Veritas-X Heuristic Fallback (Timeout):", edgeRes);
-        renderResultCard(post, edgeRes, btn);
-        verificationCache.set(postKey, edgeRes);
-        btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
+        renderErrorCard(post, "AI Verification timed out after 14 seconds. Please check your network connection and retry.", btn);
+        btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Error">⚠️</span>`;
       }
-    }, 3800);
+    }, 14000);
 
     try {
       if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
         chrome.runtime.sendMessage({ action: "verifyPost", data: postData }, response => {
           if (responded) return;
           responded = true;
-          clearTimeout(fallbackTimer);
+          clearTimeout(safetyTimeout);
 
-          let finalResult = null;
           if (response && response.success && response.data) {
-            finalResult = response.data;
+            renderResultCard(post, response.data, btn);
+            verificationCache.set(postKey, response.data);
+            btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
           } else {
-            finalResult = simulateVerification(postData);
+            const errorMsg = response?.error || "AI Forensics Verification failed. No valid response received from Gemini.";
+            renderErrorCard(post, errorMsg, btn);
+            btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Error">⚠️</span>`;
           }
-
-          renderResultCard(post, finalResult, btn);
-          verificationCache.set(postKey, finalResult);
-          btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
         });
       } else {
-        throw new Error("chrome.runtime unavailable");
+        throw new Error("chrome.runtime is unavailable in current context.");
       }
     } catch (e) {
       if (!responded) {
         responded = true;
-        clearTimeout(fallbackTimer);
-        const edgeRes = simulateVerification(postData);
-        renderResultCard(post, edgeRes, btn);
-        verificationCache.set(postKey, edgeRes);
-        btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Verified">🛡️</span>`;
+        clearTimeout(safetyTimeout);
+        renderErrorCard(post, e.message || String(e), btn);
+        btn.innerHTML = `<span style="font-size: 15px; line-height: 1;" title="Error">⚠️</span>`;
       }
     }
   };
@@ -443,167 +517,95 @@ function extractPostData(postNode) {
   return { tweetText, userHandle, fullUserHeader, mediaUrl, mediaType, mediaLabels, platform };
 }
 
-// 7. Deterministic Edge Heuristics (Enforcing Exact Case A, B, and C Logic)
-function simulateVerification(data) {
-  const text = (data.tweetText || "").toLowerCase();
-  const handle = (data.userHandle || "").toLowerCase();
-  const header = (data.fullUserHeader || "").toLowerCase();
-  const combined = text + " " + handle + " " + header;
-  const isVideoOrImageOrAudio = data.mediaType === "video" || data.mediaType === "image" || text.includes("song") || text.includes("music") || text.includes("audio");
+// Helper: Escape HTML in error messages to prevent XSS
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-  // Helper: Boundary-aware keyword matching
-  function hasWord(source, target) {
-    const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(^|[^a-zA-Z0-9\u0980-\u09FF])${escaped}([^a-zA-Z0-9\u0980-\u09FF]|$)`, 'i');
-    return regex.test(source);
+// 7. Render Error Card when Live AI Verification Fails (Displays Real API Error)
+function renderErrorCard(postNode, errorMessage, triggerBtn) {
+  let backdrop = document.getElementById("veritas-modal-backdrop");
+  if (!backdrop) {
+    backdrop = document.createElement("div");
+    backdrop.id = "veritas-modal-backdrop";
+    backdrop.addEventListener("click", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      closeVeritasModal();
+    });
+    document.body.appendChild(backdrop);
   }
 
-  // 1. Founder & Authorized Veritas Systems (Case A)
-  if (handle.includes("mahmudul") || handle.includes("hmahmudulm") || text.includes("veritas")) {
-    return {
-      case_type: "REAL",
-      is_fake: false,
-      authentic_score: 99,
-      deepfake_score: 1,
-      bot_score: 1,
-      badge_text: "SYSTEM VERIFIED",
-      fact_check_status: "Verified Authentic (Founder Origin)",
-      summary: "Cryptographic creator signature verified. Direct authentic origin from Founder & Lead Architect Md. Mahmudul Hoque."
-    };
+  let card = document.getElementById("veritas-unified-card");
+  if (!card) {
+    card = document.createElement("div");
+    card.id = "veritas-unified-card";
+    card.className = "veritas-card veritas-result-card";
+    document.body.appendChild(card);
   }
 
-  // 2. Legitimate Global Corporate Brands (Mozilla Firefox, Google, Apple, Microsoft, etc.) -> Case A
-  const brandWhitelist = [
-    "firefox", "mozilla", "mozilla firefox", "google", "microsoft", "apple", "adobe",
-    "samsung", "meta", "amazon", "spotify", "netflix", "canva", "duolingo", "intel", "nvidia"
-  ];
-  const isVerifiedBrand = brandWhitelist.some(b => handle.includes(b) || header.includes(b) || text.includes(b));
-  if (isVerifiedBrand && !text.includes("official_ai_badge")) {
-    const orig = Math.floor(Math.random() * 6) + 94; // 94% - 99%
-    const df = Math.floor(Math.random() * 3) + 1;    // 1% - 3%
-    const bot = Math.floor(Math.random() * 3) + 2;   // 2% - 4%
-    return {
-      case_type: "REAL",
-      is_fake: false,
-      authentic_score: orig,
-      deepfake_score: df,
-      bot_score: bot,
-      badge_text: "SYSTEM VERIFIED",
-      fact_check_status: "Verified Authentic (Official Brand Campaign)",
-      summary: "Multi-spectral forensics confirmed legitimate commercial campaign from an official corporate entity. Authentic enterprise communications and verified digital provenance."
-    };
-  }
+  card.dataset.currentPostId = postNode.id || postNode.innerText.slice(0, 30);
 
-  // 3. Certified Authentic News Agencies -> Case A
-  const newsWhitelist = [
-    "fox news", "foxnews", "bbc", "cnn", "reuters", "bloomberg", "associated press", "ap news",
-    "al jazeera", "aljazeera", "the guardian", "nbc", "abc news", "cbs", "sky news", "dw news",
-    "wsj", "new york times", "nytimes", "washington post", "forbes", "time",
-    "prothom alo", "প্রথম আলো", "the daily star", "somoy tv", "সময় টিভি", "jamuna tv", "যমুনা টিভি", "channel 24", "চ্যানেল ২৪"
-  ];
-  const isVerifiedNews = newsWhitelist.some(n => handle.includes(n) || header.includes(n) || text.includes(n));
-  if (isVerifiedNews) {
-    const orig = Math.floor(Math.random() * 6) + 94;
-    return {
-      case_type: "REAL",
-      is_fake: false,
-      authentic_score: orig,
-      deepfake_score: 2,
-      bot_score: 2,
-      badge_text: "SYSTEM VERIFIED",
-      fact_check_status: "Verified Authentic (Certified News Agency)",
-      summary: "Multi-spectral forensics verified editorial broadcast origin. Camera metadata and broadcast timeline match authentic unmanipulated media."
-    };
-  }
+  card.innerHTML = `
+    <!-- Header -->
+    <div style="display: flex !important; align-items: center !important; justify-content: space-between !important; margin-bottom: 12px !important; padding-bottom: 10px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;">
+      <div style="display: flex !important; align-items: center !important; gap: 6px !important; font-size: 13px !important; font-weight: 800 !important; color: #1d9bf0 !important;">
+        <span>⚡</span>
+        <span style="letter-spacing: 0.5px !important;">VERITAS VERIFIED NOTE</span>
+      </div>
+      <div style="display: flex !important; align-items: center !important; gap: 8px !important;">
+        <div style="padding: 3px 8px !important; border-radius: 6px !important; font-size: 10px !important; font-weight: 800 !important; background: rgba(239, 68, 68, 0.2) !important; color: #EF4444 !important; border: 1px solid rgba(239, 68, 68, 0.6) !important; white-space: nowrap !important; text-transform: uppercase !important;">
+          API ERROR
+        </div>
+        <button id="veritas-close-card" style="background: none !important; border: none !important; color: #8b98a5 !important; font-size: 16px !important; cursor: pointer !important; padding: 0 4px !important; line-height: 1 !important;">✕</button>
+      </div>
+    </div>
 
-  // 3b. Real Creator Media with Original Audio / Organic Video
-  if (data.mediaLabels?.includes("ORIGINAL_AUDIO") || header.includes("verified_creator")) {
-    const orig = Math.floor(Math.random() * 6) + 94; // 94% - 99%
-    return {
-      case_type: "REAL",
-      is_fake: false,
-      authentic_score: orig,
-      deepfake_score: 2,
-      bot_score: 2,
-      badge_text: "SYSTEM VERIFIED",
-      fact_check_status: "Verified Authentic (Creator Organic Media)",
-      summary: "Multi-spectral forensics verified organic capture signature and authentic creator audio track. Zero generative diffusion artifacts detected across visual frames."
-    };
-  }
+    <!-- Error Body -->
+    <div style="padding: 10px 4px 16px 4px !important; text-align: center !important;">
+      <div style="font-size: 32px !important; margin-bottom: 8px !important;">⚠️</div>
+      <div style="font-size: 15px !important; font-weight: 800 !important; color: #EF4444 !important; margin-bottom: 6px !important;">
+        Live AI Verification Failed
+      </div>
+      <div style="font-size: 12px !important; color: #8b98a5 !important; margin-bottom: 12px !important; line-height: 1.4 !important;">
+        The Gemini Multimodal AI call encountered an error. Live API details:
+      </div>
+      <div style="background: rgba(239, 68, 68, 0.08) !important; border: 1px solid rgba(239, 68, 68, 0.35) !important; border-radius: 8px !important; padding: 10px 12px !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important; font-size: 11.5px !important; color: #fca5a5 !important; text-align: left !important; word-break: break-word !important; max-height: 140px !important; overflow-y: auto !important; line-height: 1.45 !important;">
+        ${escapeHtml(errorMessage)}
+      </div>
+    </div>
 
-  // 4. Case C: Automated Bot Posts & Bot Media
-  const emojiMatches = combined.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/gu) || [];
-  const isEmojiSpamBot = emojiMatches.length >= 6;
-  const isScamAd = combined.includes("crosispeng") || combined.includes("frukifocros") ||
-    (isEmojiSpamBot && (combined.includes("download") || header.includes("ad")));
-  const scamKeywords = ["ঘরে বসে আয়", "ঘরে বসে আয়", "বিকাশ ফ্রি", "নগদ অফার", "ফ্রি টাকা", "free crypto", "giveaway claim"];
-  const isScamPromotion = scamKeywords.some(sk => hasWord(combined, sk));
+    <!-- Founder & Creator Footer -->
+    <div style="background: rgba(29, 155, 240, 0.08) !important; border: 1px solid rgba(29, 155, 240, 0.3) !important; border-radius: 8px !important; padding: 7px 10px !important;">
+      <div style="display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 3px !important;">
+        <span style="font-size: 9px !important; font-weight: 800 !important; color: #1d9bf0 !important; text-transform: uppercase !important; background: rgba(29, 155, 240, 0.2) !important; padding: 1px 5px !important; border-radius: 3px !important;">FOUNDER &amp; CREATOR</span>
+        <span style="font-size: 10px !important; color: #10B981 !important; font-weight: 700 !important; display: flex !important; align-items: center !important; gap: 4px !important;">
+          <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+          ENGINE VERIFIED
+        </span>
+      </div>
+      <div style="font-size: 11.5px !important; font-weight: 800 !important; color: #ffffff !important;">Md. Mahmudul Hoque ⚡</div>
+      <div style="display: flex !important; justify-content: space-between !important; font-size: 10px !important; color: #8b98a5 !important; margin-top: 2px !important; flex-wrap: wrap !important; gap: 4px !important;">
+        <span>✉️ mahmudulhoque934@gmail.com</span>
+        <span>⚡ @hmahmudulm</span>
+      </div>
+      <div style="font-size: 9.5px !important; color: #1d9bf0 !important; margin-top: 3px !important; display: flex !important; align-items: center !important; gap: 4px !important;">
+        <span>📍 Panchagarh, Bangladesh 🌐</span>
+      </div>
+    </div>
+  `;
 
-  if (isScamAd || isScamPromotion) {
-    return {
-      case_type: "BOT",
-      is_fake: true,
-      authentic_score: 0,
-      deepfake_score: 15,
-      bot_score: 100, // Strictly 100% Red
-      badge_text: "BOT ALERT",
-      fact_check_status: "Automated Bot Activity Detected",
-      summary: "Automated bot farm activity confirmed. Syntactic distribution and behavioral heuristics match non-human coordinated spam networks."
-    };
-  }
-
-  // 5. Case B: AI-Generated Media, Deepfakes, AI Songs/Music & Misinformation
-  const officialAiBadge = text.includes("official_ai_badge") ||
-    text.includes("contains ai-generated media") ||
-    text.includes("creator labeled as ai") ||
-    text.includes("ai content") ||
-    text.includes("made with ai") ||
-    text.includes("created with ai");
-
-  const aiGenerativeKeywords = [
-    "deepfake", "ডিপফেক", "face swap", "faceswap", "মুখ বদল", "sora", "runway", "pika", "kling",
-    "midjourney", "dall-e", "stablediffusion", "flux", "suno", "udio", "ai song", "ai music",
-    "ai cover", "voice clone", "চেহারা বদল", "রোবট গান", "গানটি ai"
-  ];
-  const matchedAi = aiGenerativeKeywords.find(kw => hasWord(combined, kw) || combined.includes(kw));
-
-  // Political impossible deepfakes (e.g. Putin sushi, Trump/Xi/Putin shots)
-  const isSatiricalImpossibleMeeting = (combined.includes("putin") || combined.includes("trump") || combined.includes("xi jinping")) &&
-    (combined.includes("sushi") || combined.includes("shots") || combined.includes("drinking") || combined.includes("peace ain't easy") || combined.includes("who did this"));
-
-  if (officialAiBadge || matchedAi || isSatiricalImpossibleMeeting) {
-    const dfScore = isVideoOrImageOrAudio
-      ? (Math.floor(Math.random() * 6) + 95) // 95% - 100%
-      : (Math.floor(Math.random() * 11) + 90); // 90% - 100%
-    const origScore = Math.floor(Math.random() * 6); // 0% - 5%
-
-    return {
-      case_type: "FAKE",
-      is_fake: true,
-      authentic_score: origScore,
-      deepfake_score: dfScore,
-      bot_score: 10,
-      badge_text: "FAKE / AI DETECTED",
-      fact_check_status: "High Risk: Synthetic Media or Misinformation Detected",
-      summary: `Multi-spectral forensic scan detected synthetic generation (${(matchedAi || "Generative AI").toUpperCase()}). Neural diffusion artifacts and temporal inconsistencies confirmed across visual frames.`
-    };
-  }
-
-  // 6. Case A: Normal Organic Post Baseline (Human-created, organic everyday media)
-  const origScore = Math.floor(Math.random() * 11) + 90; // 90% - 100%
-  const dfScore = Math.floor(Math.random() * 6);          // 0% - 5%
-  const botScore = Math.floor(Math.random() * 6);         // 0% - 5%
-
-  return {
-    case_type: "REAL",
-    is_fake: false,
-    authentic_score: origScore,
-    deepfake_score: dfScore,
-    bot_score: botScore,
-    badge_text: "SYSTEM VERIFIED",
-    fact_check_status: "Verified Authentic (Organic Media)",
-    summary: "Multi-spectral forensics verified organic capture signature. Zero generative diffusion artifacts or automated bot manipulation detected."
-  };
+  card.querySelector("#veritas-close-card")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    closeVeritasModal();
+  });
 }
 
 // 8. Render the Instant Loading Modal in document.body (Portal Pattern)
