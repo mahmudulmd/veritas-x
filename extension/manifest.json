@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Veritas-X — Multimodal AI Verification Engine",
-  "version": "3.4.2",
+  "version": "3.4.3",
   "description": "Cross-Platform Real-Time Multimodal AI Verification & Deepfake Detection for X, Facebook, Instagram, TikTok, and Threads. Founder: Md. Mahmudul Hoque.",
   "author": "Md. Mahmudul Hoque <mahmudulhoque934@gmail.com>",
   "permissions": [

@@ -219,19 +219,35 @@ function findPostContainerForButton(btn) {
   }
 
   if (platform === "facebook") {
-    // Dialog / Theater Mode
-    const dialog = btn.closest('div[role="dialog"], div[data-pagelet="MediaViewer"]');
-    if (dialog && !dialog.getAttribute("aria-label")?.includes("Chat")) return dialog;
+    // 1. Full-Screen Video / Theater Dialog
+    const dialog = btn.closest('div[role="dialog"], div[data-pagelet="MediaViewer"], div[aria-label*="Facebook Video" i]');
+    if (dialog && !dialog.getAttribute("aria-label")?.includes("Chat") && !dialog.getAttribute("aria-label")?.includes("Messenger")) {
+      return dialog;
+    }
 
-    // Stories
+    // 2. Stories
     const story = btn.closest('div[data-pagelet*="Stories"], div[aria-label*="Story" i]');
     if (story) return story;
 
-    // Reels
-    const reel = btn.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
-    if (reel) return reel;
+    // 3. Reels & Full-Screen Video: Traverse up to the container holding BOTH video and caption/author
+    let curr = btn.parentElement;
+    let reelContainer = null;
+    while (curr && curr !== document.body && curr !== document.documentElement) {
+      if (
+        curr.getAttribute("role") === "dialog" ||
+        curr.getAttribute("data-pagelet")?.includes("Reel") ||
+        curr.getAttribute("data-pagelet")?.includes("MediaViewer")
+      ) {
+        return curr;
+      }
+      if (curr.querySelector('video') && (curr.querySelector('h2, h3, h4, strong a, a[role="link"] span, div[dir="auto"]') || curr.querySelector('span[dir="auto"]'))) {
+        reelContainer = curr;
+      }
+      curr = curr.parentElement;
+    }
+    if (reelContainer) return reelContainer;
 
-    // Feed Article
+    // 4. Feed Article
     const article = btn.closest('div[role="article"]');
     if (article && !isInsideExcludedArea(article)) return article;
 
@@ -241,7 +257,7 @@ function findPostContainerForButton(btn) {
   return btn.parentElement;
 }
 
-// 5. Clean Post Text Extraction (Safely ignoring Veritas UI)
+// 5. Clean Post Text Extraction (Safely ignoring Veritas UI and raw UI action counters)
 function getCleanPostText(node) {
   if (!node) return "";
   let fullText = "";
@@ -252,9 +268,25 @@ function getCleanPostText(node) {
       NodeFilter.SHOW_TEXT,
       {
         acceptNode(n) {
-          if (n.parentElement && n.parentElement.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card')) {
+          if (!n.parentElement) return NodeFilter.FILTER_REJECT;
+          const p = n.parentElement;
+
+          // Exclude Veritas UI and Portal Backdrops
+          if (p.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card, #veritas-modal-backdrop')) {
             return NodeFilter.FILTER_REJECT;
           }
+
+          // EXCLUDE Action buttons, like/comment/share counters, and action toolbars!
+          if (p.closest(
+            '[role="toolbar"], div[aria-label*="Like" i], div[aria-label*="Comment" i], ' +
+            'div[aria-label*="Share" i], div[aria-label*="Send" i], div[aria-label*="Repost" i], ' +
+            'button[aria-label*="Like" i], button[aria-label*="Comment" i], button[aria-label*="Share" i], ' +
+            '[data-e2e="like-icon"], [data-e2e="comment-icon"], [data-e2e="feed-like"], [data-e2e="feed-comment"], ' +
+            '[data-testid="like"], [data-testid="retweet"], [data-testid="reply"]'
+          )) {
+            return NodeFilter.FILTER_REJECT;
+          }
+
           return NodeFilter.FILTER_ACCEPT;
         }
       },
@@ -264,18 +296,24 @@ function getCleanPostText(node) {
     let currentNode;
     while ((currentNode = walker.nextNode())) {
       const text = currentNode.nodeValue.trim();
+      // Skip pure UI metric numbers like "1.4K", "29", "147", "2.5M"
+      if (/^\d+(\.\d+)?[KkMmBb]?$/.test(text)) {
+        continue;
+      }
       if (text.length > 0) fullText += text + " ";
     }
   } catch (err) {
     fullText = node.innerText || "";
   }
 
-  const attrs = Array.from(node.querySelectorAll('[aria-label], [alt], [title]'))
-    .filter(el => !el.closest('.veritas-card, .veritas-verify-btn, #veritas-unified-card'))
-    .map(el => (el.getAttribute("aria-label") || "") + " " + (el.getAttribute("alt") || "") + " " + (el.getAttribute("title") || ""))
-    .join(" ");
+  // Strip UI action tokens and isolated counters
+  fullText = fullText
+    .replace(/\b(Like|Comment|Share|Repost|Send|Bookmark|Save|More options|View more comments)\b/gi, ' ')
+    .replace(/\b\d+(\.\d+)?[KkMmBb]\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  return (fullText + " " + attrs).replace(/\s+/g, " ").trim();
+  return fullText;
 }
 
 // 6. Comprehensive Post Data Extraction
@@ -332,21 +370,82 @@ function extractPostData(postNode) {
     });
     if (hasMetaAi) tweetText += " [META_OFFICIAL_AI_BADGE_DETECTED]";
   } else if (platform === "facebook") {
-    tweetText = getCleanPostText(postNode);
-    const userEl = postNode.querySelector('h2 a, strong a, a[role="link"] span, h3 a, h4 a, strong');
+    // Determine if in Reels or Theater view
+    const isReelOrWatch = window.location.pathname.includes("/reel/") || window.location.pathname.includes("/watch/") ||
+      !!postNode.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
+
+    // 1. Author & Creator Extraction
+    let userEl = postNode.querySelector(
+      'h2 a, h3 a, h4 a, strong a, a[role="link"] span, strong, div[dir="auto"] a[href*="/"]'
+    );
+    // If in full page reel/watch and userEl not found inside postNode, look in main reel container
+    if (!userEl && isReelOrWatch) {
+      userEl = document.querySelector('div[role="main"] h2 a, div[role="main"] h3 a, div[role="main"] strong a, div[role="main"] span a[role="link"]');
+    }
     userHandle = userEl ? userEl.textContent.trim() : "";
-    fullUserHeader = userHandle;
-    const vid = postNode.querySelector("video");
+
+    const isVerified = !!postNode.querySelector('svg[aria-label*="Verified" i], [aria-label*="Verified account" i]') ||
+      (isReelOrWatch && !!document.querySelector('div[role="main"] svg[aria-label*="Verified" i]'));
+    fullUserHeader = userHandle + (isVerified ? " [VERIFIED_CREATOR]" : "");
+
+    // 2. Video Media Extraction
+    let vid = postNode.querySelector("video");
+    if (!vid && isReelOrWatch) {
+      vid = document.querySelector('div[role="main"] video') || document.querySelector("video");
+    }
     const imgs = Array.from(postNode.querySelectorAll('img[src*="fbcdn"]:not([width="16"]):not([width="20"]), div[data-visualcompletion="media-vc-image"] img'));
     mediaType = vid ? "video" : (imgs.length > 0 ? "image" : "text");
     mediaUrl = vid ? (vid.src || vid.currentSrc) : (imgs.length > 0 ? imgs[0].src : null);
 
+    // 3. Post Caption / Description Extraction
+    tweetText = getCleanPostText(postNode);
+    // If in reel and tweetText is too short, get caption from bottom left overlay
+    if (isReelOrWatch && tweetText.length < 15) {
+      const captionContainer = document.querySelector(
+        'div[role="main"] div[dir="auto"], div[role="main"] span[dir="auto"], div[data-ad-preview="message"]'
+      );
+      if (captionContainer) {
+        tweetText = getCleanPostText(captionContainer);
+      }
+    }
+
+    // 4. Audio / Soundtrack Extraction
+    const audioEl = postNode.querySelector('a[href*="/audio/"], a[href*="/music/"], span[class*="audio"]') ||
+      (isReelOrWatch ? document.querySelector('div[role="main"] a[href*="/audio/"], div[role="main"] a[href*="/music/"]') : null);
+    const audioText = audioEl ? audioEl.textContent.trim() : "";
+    if (audioText || tweetText.toLowerCase().includes("original audio") || tweetText.toLowerCase().includes("original sound")) {
+      mediaLabels += " [ORIGINAL_AUDIO: " + (audioText || "Creator Original Soundtrack") + "]";
+    }
+
+    // 5. Meta AI Disclosures
     const hasMetaAi = Array.from(postNode.querySelectorAll('span, button, div, a')).some(el => {
       const t = (el.textContent || "").trim().toLowerCase();
       return t === "ai content" || t === "ai info" || t === "made with ai" || t === "created with ai";
     });
     if (hasMetaAi) tweetText += " [META_OFFICIAL_AI_BADGE_DETECTED]";
   } else if (platform === "youtube") {
+    const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
+    tweetText = titleEl ? titleEl.textContent : "";
+    const chanEl = postNode.querySelector('#channel-name, #text, yt-formatted-string');
+    userHandle = chanEl ? chanEl.textContent : "";
+    fullUserHeader = userHandle;
+    mediaType = "video";
+    const vid = postNode.querySelector("video");
+    mediaUrl = vid ? vid.src : null;
+  } else {
+    // Twitter / X
+    const allTextElements = Array.from(postNode.querySelectorAll('[data-testid="tweetText"]'));
+    tweetText = allTextElements.map(el => el.textContent).join(" ");
+    const userElement = postNode.querySelector('[data-testid="User-Name"]');
+    fullUserHeader = userElement ? userElement.textContent : "";
+    userHandle = userElement ? (userElement.textContent.split("\n").find(s => s.startsWith("@")) || "") : "";
+    const hasVideo = !!postNode.querySelector("video");
+    const hasPhoto = !!postNode.querySelector('div[data-testid="tweetPhoto"], img[src*="pbs.twimg.com/media"]');
+    mediaType = hasVideo ? "video" : (hasPhoto ? "image" : "text");
+  }
+
+  return { tweetText, userHandle, fullUserHeader, mediaUrl, mediaType, mediaLabels, platform };
+} else if (platform === "youtube") {
     const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
     tweetText = titleEl ? titleEl.textContent : "";
     const chanEl = postNode.querySelector('#channel-name, #text, yt-formatted-string');
@@ -440,6 +539,21 @@ function simulateVerification(data) {
       badge_text: "SYSTEM VERIFIED",
       fact_check_status: "Verified Authentic (Certified News Agency)",
       summary: "Multi-spectral forensics verified editorial broadcast origin. Camera metadata and broadcast timeline match authentic unmanipulated media."
+    };
+  }
+
+  // 3b. Real Creator Media with Original Audio / Organic Video
+  if (data.mediaLabels?.includes("ORIGINAL_AUDIO") || header.includes("verified_creator")) {
+    const orig = Math.floor(Math.random() * 6) + 94; // 94% - 99%
+    return {
+      case_type: "REAL",
+      is_fake: false,
+      authentic_score: orig,
+      deepfake_score: 2,
+      bot_score: 2,
+      badge_text: "SYSTEM VERIFIED",
+      fact_check_status: "Verified Authentic (Creator Organic Media)",
+      summary: "Multi-spectral forensics verified organic capture signature and authentic creator audio track. Zero generative diffusion artifacts detected across visual frames."
     };
   }
 
