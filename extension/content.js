@@ -733,14 +733,19 @@ function simulateVerification(data) {
     };
   }
 
-  if (matchedScam) {
+  // Bot emoji bomb / deceptive ad check
+  const emojiMatches = combined.match(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}]/gu) || [];
+  const isEmojiSpamBot = emojiMatches.length >= 6;
+  const isScamAd = combined.includes("download") || header.includes("ad") || text.includes("download");
+
+  if (matchedScam || (isEmojiSpamBot && isScamAd)) {
     return {
       is_fake: true,
-      authentic_score: 3,
-      deepfake_score: 97,
-      bot_score: 93,
-      fact_check_status: "Debunked / Fraudulent Scam Scheme",
-      summary: "Pattern heuristics identified coordinated deceptive promotion and financial scam markers. High risk of malicious payload or phishing."
+      authentic_score: 5,
+      deepfake_score: 8,
+      bot_score: 95,
+      fact_check_status: "Debunked / Fraudulent Bot Scam",
+      summary: "Pattern heuristics identified coordinated deceptive promotion, bot emoji spam, and fraudulent app download scheme."
     };
   }
 
@@ -810,11 +815,25 @@ function renderResultCard(postNode, data, triggerBtn) {
     word-break: break-word !important;
   `;
 
-  const isFake = data.is_fake;
+  const statusLower = (data.fact_check_status || "").toLowerCase();
+  const isSpamOrBot = (data.bot_score && data.bot_score >= 60) ||
+    statusLower.includes("spam") || statusLower.includes("bot") || statusLower.includes("scam") || statusLower.includes("fraud");
+
+  const isFake = Boolean(data.is_fake) || isSpamOrBot;
+
+  let displayAuthScore = data.authentic_score;
+  if (isSpamOrBot && displayAuthScore > 25) {
+    displayAuthScore = Math.max(3, 100 - (data.bot_score || 88));
+  }
+
   const statusColor = isFake ? "#f4212e" : "#00ba7c";
   const badgeBg = isFake ? "rgba(244, 33, 46, 0.2)" : "rgba(0, 186, 124, 0.2)";
   const badgeBorder = isFake ? "rgba(244, 33, 46, 0.5)" : "rgba(0, 186, 124, 0.5)";
-  const badgeText = isFake ? "AI-GENERATED / MANIPULATED" : "SYSTEM VERIFIED";
+
+  let badgeText = "SYSTEM VERIFIED";
+  if (isFake) {
+    badgeText = isSpamOrBot ? "DEBUNKED / BOT SPAM SCAM" : "AI-GENERATED / MANIPULATED";
+  }
 
   card.innerHTML = `
     <!-- Header -->
@@ -836,17 +855,17 @@ function renderResultCard(postNode, data, triggerBtn) {
       <!-- Original Authenticity -->
       <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
         <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">ORIGINAL</div>
-        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isFake ? '#8b98a5' : '#00ba7c'} !important; line-height: 1.1 !important;">${data.authentic_score}%</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isFake ? '#8b98a5' : '#00ba7c'} !important; line-height: 1.1 !important;">${displayAuthScore}%</div>
       </div>
       <!-- AI / Deepfake Risk -->
       <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
         <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">AI RISK</div>
-        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isFake ? '#f4212e' : '#00ba7c'} !important; line-height: 1.1 !important;">${data.deepfake_score}%</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${data.deepfake_score >= 50 ? '#f4212e' : (isFake ? '#8b98a5' : '#00ba7c')} !important; line-height: 1.1 !important;">${data.deepfake_score}%</div>
       </div>
       <!-- Bot / Synthetic Probability -->
       <div style="background: rgba(255, 255, 255, 0.05) !important; padding: 6px 4px !important; border-radius: 8px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; text-align: center !important;">
         <div style="font-size: 8px !important; color: #8b98a5 !important; text-transform: uppercase !important; font-weight: 700 !important; margin-bottom: 2px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important;">BOT / SYNTH</div>
-        <div style="font-size: 17px !important; font-weight: 800 !important; color: #1d9bf0 !important; line-height: 1.1 !important;">${data.bot_score}%</div>
+        <div style="font-size: 17px !important; font-weight: 800 !important; color: ${isSpamOrBot ? '#f4212e' : '#1d9bf0'} !important; line-height: 1.1 !important;">${data.bot_score}%</div>
       </div>
     </div>
 
