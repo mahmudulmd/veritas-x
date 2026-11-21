@@ -445,28 +445,6 @@ function extractPostData(postNode) {
   }
 
   return { tweetText, userHandle, fullUserHeader, mediaUrl, mediaType, mediaLabels, platform };
-} else if (platform === "youtube") {
-    const titleEl = postNode.querySelector('#title, #overlay-title, #video-title, h1');
-    tweetText = titleEl ? titleEl.textContent : "";
-    const chanEl = postNode.querySelector('#channel-name, #text, yt-formatted-string');
-    userHandle = chanEl ? chanEl.textContent : "";
-    fullUserHeader = userHandle;
-    mediaType = "video";
-    const vid = postNode.querySelector("video");
-    mediaUrl = vid ? vid.src : null;
-  } else {
-    // Twitter / X
-    const allTextElements = Array.from(postNode.querySelectorAll('[data-testid="tweetText"]'));
-    tweetText = allTextElements.map(el => el.textContent).join(" ");
-    const userElement = postNode.querySelector('[data-testid="User-Name"]');
-    fullUserHeader = userElement ? userElement.textContent : "";
-    userHandle = userElement ? (userElement.textContent.split("\n").find(s => s.startsWith("@")) || "") : "";
-    const hasVideo = !!postNode.querySelector("video");
-    const hasPhoto = !!postNode.querySelector('div[data-testid="tweetPhoto"], img[src*="pbs.twimg.com/media"]');
-    mediaType = hasVideo ? "video" : (hasPhoto ? "image" : "text");
-  }
-
-  return { tweetText, userHandle, fullUserHeader, mediaUrl, mediaType, mediaLabels, platform };
 }
 
 // 7. Deterministic Edge Heuristics (Enforcing Exact Case A, B, and C Logic)
