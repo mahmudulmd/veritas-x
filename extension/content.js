@@ -1018,8 +1018,26 @@ function renderResultCard(postNode, data, triggerBtn) {
   window.addEventListener("scroll", onScrollHandler, { passive: true, capture: true });
 }
 
+// Helper: Check if an element is inside Facebook Reel's legitimate right-side action rail
+function isInsideReelActionRail(el) {
+  if (!el) return false;
+  let p = el.parentElement;
+  for (let i = 0; i < 5 && p && p !== document.body; i++) {
+    const hasLike = !!p.querySelector('[aria-label*="Like" i], [aria-label*="React" i], [aria-label*="পছন্দ" i], [aria-label*="লাইক" i]');
+    const hasComment = !!p.querySelector('[aria-label*="Comment" i], [aria-label*="মন্তব্য" i]');
+    const hasShare = !!p.querySelector('[aria-label*="Share" i], [aria-label*="Send this" i], [aria-label*="শেয়ার" i], [aria-label*="শেয়ার" i]');
+    if ((hasLike || hasComment) && hasShare) {
+      return true;
+    }
+    p = p.parentElement;
+  }
+  return false;
+}
+
 function isCommentElement(el) {
   if (!el) return true;
+  // Legitimate action rail buttons are NEVER comment elements!
+  if (isInsideReelActionRail(el)) return false;
 
   // 1. Inside comment lists, reply threads, or listitems (individual comments)
   if (el.closest('ul, ol, li, [role="listitem"]')) {
@@ -1041,12 +1059,6 @@ function isCommentElement(el) {
   if (isReel) {
     if (el.closest('[role="complementary"], [aria-label*="Reel comments" i], [data-pagelet*="ReelComments" i]')) {
       return true;
-    }
-    const r = el.getBoundingClientRect();
-    if (r.left > window.innerWidth * 0.65) {
-      if (el.closest('form, ul, li, [role="listitem"]')) {
-        return true;
-      }
     }
   }
 
@@ -1104,6 +1116,9 @@ function isAudiencePrivacyBadge(el) {
 
 function isReelAuthorHeader(el) {
   if (!el) return false;
+  // If inside the legitimate action rail, it is NEVER an author header!
+  if (isInsideReelActionRail(el)) return false;
+
   if (isAudiencePrivacyBadge(el)) return true;
 
   // 1. Check if el or any sibling/parent is near Follow, creator name, or audio link
@@ -1132,19 +1147,6 @@ function isReelAuthorHeader(el) {
     }
 
     p = p.parentElement;
-  }
-
-  // 2. On a Reel URL or container:
-  const isReel = window.location.href.includes("/reel/") ||
-    !!el.closest('div[data-pagelet*="Reel"], div[class*="reel"]');
-
-  if (isReel) {
-    const r = el.getBoundingClientRect();
-    // On Facebook Reels, the action rail is strictly on the right side.
-    // If it's on the left side of the screen, it's definitely in the video/creator area!
-    if (r.left > 0 && r.left < window.innerWidth * 0.55) {
-      return true;
-    }
   }
 
   return false;
@@ -1196,13 +1198,15 @@ function injectFacebookButtons() {
     const post = findPostContainerForButton(target) || target;
     if (post && (processedPosts.has(post) || post.querySelector('.veritas-verify-btn'))) return;
 
-    // On Reels: Find the 3-dots button below Share
+    // On Reels: Position at the very bottom of the vertical action rail (after the 3-dots button)
+    let finalTarget = target;
     let nextBtn = target.nextElementSibling;
-    while (nextBtn && nextBtn.classList.contains("veritas-verify-btn")) {
+    while (nextBtn) {
+      if (!nextBtn.classList.contains("veritas-verify-btn")) {
+        finalTarget = nextBtn;
+      }
       nextBtn = nextBtn.nextElementSibling;
     }
-    // If the 3-dots button exists, place the Veritas button AFTER the 3-dots button!
-    let finalTarget = nextBtn || target;
 
     processedRows.add(rail);
     if (post) processedPosts.add(post);
