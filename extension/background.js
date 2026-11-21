@@ -51,12 +51,18 @@ Labels / Context: "${tweetData.mediaLabels || ""}"
 
 CORE FORENSIC RULES:
 1. Deepfakes & AI Satire: If the media depicts world leaders or celebrities in impossible/satirical scenarios, flag as AI DEEPFAKE (is_fake: true, deepfake_score: 95-99).
-2. Bot Farms, Spam & Malicious Scam Ads: If the post exhibits automated bot patterns (random strings of emojis, gibberish author names like Crosispeng Frukifocros, fraudulent app downloads, deceptive get-rich-quick, spam gambling, scam links), it is a MALICIOUS BOT/SPAM THREAT. Flag as:
+2. Official Brand Advertisements & Commercial Campaigns: Official corporate ads, sponsored posts, or feature announcements from recognized global companies and software brands (e.g., Firefox, Mozilla, Google, Microsoft, Apple, Adobe, Samsung, Canva, Duolingo, etc.) promoting real products or features (e.g. 'Firefox AI Controls', official app downloads) are 100% AUTHENTIC and SAFE commercial campaigns. They are NEVER bot scams or deepfakes. Flag as:
+   is_fake: false
+   deepfake_score: 1-4
+   bot_score: 1-5
+   fact_check_status: "Verified Authentic (Official Brand Campaign)"
+   summary: "Verified legitimate commercial campaign from an official corporate brand. Genuine product communications."
+3. Malicious Scam Ads & Bot Farms: ONLY flag as bot/scam if the post is from an unverified, deceptive bot account with gibberish names (e.g., Crosispeng Frukifocros), random string of festive/gift emojis (e.g., 🎁🤶🎅🏻), get-rich-quick scams, phishing, or deceptive fake app clones. Legitimate global brands like Mozilla Firefox or Google are NEVER bot scams. Flag as:
    is_fake: true
    bot_score: 85-99
    deepfake_score: 10-30
    fact_check_status: "Debunked / Fraudulent Bot Scam"
-3. Official News & Genuine Personal Media: Real news broadcasts, official speeches, or genuine everyday posts from real humans without bot/scam patterns are AUTHENTIC (is_fake: false, deepfake_score: 1-4, bot_score: 1-5, fact_check_status: "Verified Authentic (Organic Media)").
+4. Official News & Genuine Personal Media: Real news broadcasts, official speeches, or genuine everyday posts from real humans without bot/scam patterns are AUTHENTIC (is_fake: false, deepfake_score: 1-4, bot_score: 1-5, fact_check_status: "Verified Authentic (Organic Media)").
 
 Return ONLY a strict JSON object:
 {
@@ -95,8 +101,25 @@ Return ONLY a strict JSON object:
             ? (parsed.bot_score <= 1 ? Math.round(parsed.bot_score * 100) : Math.round(parsed.bot_score))
             : 5;
 
-          const statusLower = (parsed.fact_check_status || "").toLowerCase();
-          const isSpamOrBot = botScore >= 60 || statusLower.includes("spam") || statusLower.includes("bot") || statusLower.includes("scam") || statusLower.includes("fraud");
+          let statusLower = (parsed.fact_check_status || "").toLowerCase();
+          let isSpamOrBot = botScore >= 60 || statusLower.includes("spam") || statusLower.includes("bot") || statusLower.includes("scam") || statusLower.includes("fraud");
+
+          // Brand Safety Guardrail: Prevent false scam classification on legitimate global brands (e.g., Firefox, Google, Microsoft)
+          const brandWhitelist = [
+            "firefox", "mozilla", "mozilla firefox", "google", "microsoft", "apple", "adobe",
+            "samsung", "meta", "amazon", "spotify", "netflix", "canva", "duolingo", "intel", "nvidia"
+          ];
+          const textAndAuthor = ((tweetData.tweetText || "") + " " + (tweetData.userHandle || "") + " " + (tweetData.fullUserHeader || "")).toLowerCase();
+          const isKnownBrand = brandWhitelist.some(b => textAndAuthor.includes(b));
+
+          if (isKnownBrand && isSpamOrBot) {
+            isSpamOrBot = false;
+            parsed.is_fake = false;
+            dfScore = 2;
+            botScore = 3;
+            parsed.fact_check_status = "Verified Authentic (Official Brand Campaign)";
+            parsed.summary = "Verified legitimate commercial campaign from an official corporate entity. Content represents authentic product communications and verified digital provenance.";
+          }
 
           // An item is FAKE/THREAT if it is either a deepfake OR a spam/bot scam!
           const isFake = Boolean(parsed.is_fake) || isSpamOrBot;

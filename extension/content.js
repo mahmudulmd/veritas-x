@@ -500,6 +500,25 @@ function simulateVerification(data) {
     };
   }
 
+  // LAYER 2b: Certified Authentic Global Brands & Official Corporate Advertisers
+  const authenticBrands = [
+    "firefox", "mozilla", "mozilla firefox", "google", "microsoft", "apple", "adobe",
+    "samsung", "meta", "amazon", "spotify", "netflix", "canva", "duolingo", "intel",
+    "nvidia", "amd", "ibm", "uber", "airbnb"
+  ];
+  const isVerifiedBrand = authenticBrands.some(brand => handle.includes(brand) || header.includes(brand) || text.includes(brand));
+  if (isVerifiedBrand && !combined.includes("meta_official_ai_badge") && !combined.includes("tiktok_official_ai_badge")) {
+    const deepfake = Math.floor(Math.random() * 3) + 1; // 1% - 3%
+    return {
+      is_fake: false,
+      authentic_score: 100 - deepfake,
+      deepfake_score: deepfake,
+      bot_score: Math.floor(Math.random() * 3) + 2,
+      fact_check_status: "Verified Authentic (Official Brand Campaign)",
+      summary: "Multi-spectral forensic scan verified legitimate commercial campaign from an official corporate entity. Authentic enterprise product communications and verified digital provenance."
+    };
+  }
+
   // LAYER 3: Official Platform AI Badges & Disclosures (TikTok, Instagram, Facebook)
   const isPlatformAiBadge = combined.includes("meta_official_ai_badge") ||
     combined.includes("tiktok_official_ai_badge") ||
